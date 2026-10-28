@@ -30,6 +30,10 @@ jobs:
         run: python -m pip install pdfplumber==0.11.9
       - name: Read latest official NBA injury report
         run: python update-nba-injuries.py
+      - name: Refresh daily model inputs
+        timeout-minutes: 3
+        continue-on-error: true
+        run: python update-model-data.py
       - name: Package public website and refreshed injury feed
         run: |
           mkdir -p _site
@@ -52,3 +56,4 @@ jobs:
       - name: Publish site and injury feed
         id: deployment
         uses: actions/deploy-pages@v4
+
