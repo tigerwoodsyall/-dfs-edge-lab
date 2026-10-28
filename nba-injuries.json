@@ -1,0 +1,733 @@
+{
+  "version": 1,
+  "checkedAt": "2026-10-28T15:28:12.759148+00:00",
+  "reportAt": "2026-10-28T11:15:00-04:00",
+  "sourceUrl": "https://ak-static.cms.nba.com/referee/injury/Injury-Report_2026-10-28_11_15AM.pdf",
+  "indexUrl": "https://official.nba.com/nba-injury-report-2026-27-season/",
+  "players": [
+    {
+      "name": "Michael Ajayi",
+      "team": "CHA",
+      "gameDate": "2026-10-28",
+      "matchup": "CHA@DET",
+      "status": "Out"
+    },
+    {
+      "name": "Kylan Boswell",
+      "team": "CHA",
+      "gameDate": "2026-10-28",
+      "matchup": "CHA@DET",
+      "status": "Out"
+    },
+    {
+      "name": "Kon Knueppel",
+      "team": "CHA",
+      "gameDate": "2026-10-28",
+      "matchup": "CHA@DET",
+      "status": "Out"
+    },
+    {
+      "name": "Coby White",
+      "team": "CHA",
+      "gameDate": "2026-10-28",
+      "matchup": "CHA@DET",
+      "status": "Out"
+    },
+    {
+      "name": "Grant Williams",
+      "team": "CHA",
+      "gameDate": "2026-10-28",
+      "matchup": "CHA@DET",
+      "status": "Out"
+    },
+    {
+      "name": "Simone Fontecchio",
+      "team": "MIA",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Out"
+    },
+    {
+      "name": "Pelle Larsson",
+      "team": "MIA",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Probable"
+    },
+    {
+      "name": "RayJ Dennis",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Zuby Ejiofor",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Keshon Gilbert",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Mouhamed Gueye",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Out"
+    },
+    {
+      "name": "Jock Landale",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Available"
+    },
+    {
+      "name": "Henri Veesaar",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Out"
+    },
+    {
+      "name": "Aaron Wiggins",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Jalen Wilson",
+      "team": "ATL",
+      "gameDate": "2026-10-28",
+      "matchup": "MIA@ATL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Dominick Barlow",
+      "team": "PHI",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Tacko Fall",
+      "team": "PHI",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Ariel Hukporti",
+      "team": "PHI",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Jabari Walker",
+      "team": "PHI",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Kobe Brown",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Probable"
+    },
+    {
+      "name": "Johnny Furphy",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Tyrese Haliburton",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Questionable"
+    },
+    {
+      "name": "T.J. McConnell",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Andrew Nembhard",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Questionable"
+    },
+    {
+      "name": "Aaron Nesmith",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Probable"
+    },
+    {
+      "name": "Ben Sheppard",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Jalen Slawson",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Probable"
+    },
+    {
+      "name": "Braden Smith",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Probable"
+    },
+    {
+      "name": "Obi Toppin",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Probable"
+    },
+    {
+      "name": "Ivica Zubac",
+      "team": "IND",
+      "gameDate": "2026-10-28",
+      "matchup": "PHI@IND",
+      "status": "Out"
+    },
+    {
+      "name": "Justin Champagnie",
+      "team": "WAS",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Out"
+    },
+    {
+      "name": "AJ Dybantsa",
+      "team": "WAS",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Questionable"
+    },
+    {
+      "name": "Tristan Vukcevic",
+      "team": "WAS",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Out"
+    },
+    {
+      "name": "Jamir Watkins",
+      "team": "WAS",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Out"
+    },
+    {
+      "name": "Khalifa Diop",
+      "team": "CLE",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Out"
+    },
+    {
+      "name": "Nae'Qwan Tomlin",
+      "team": "CLE",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Out"
+    },
+    {
+      "name": "Ernest Udeh Jr.",
+      "team": "CLE",
+      "gameDate": "2026-10-28",
+      "matchup": "WAS@CLE",
+      "status": "Out"
+    },
+    {
+      "name": "Paolo Banchero",
+      "team": "ORL",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Anthony Black",
+      "team": "ORL",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Questionable"
+    },
+    {
+      "name": "Jonathan Isaac",
+      "team": "ORL",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Izaiyah Nelson",
+      "team": "ORL",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Noah Penda",
+      "team": "ORL",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Jalen Suggs",
+      "team": "ORL",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Nate Bittle",
+      "team": "TOR",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Kawhi Leonard",
+      "team": "TOR",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Malachi Smith",
+      "team": "TOR",
+      "gameDate": "2026-10-28",
+      "matchup": "ORL@TOR",
+      "status": "Out"
+    },
+    {
+      "name": "Alpha Diallo",
+      "team": "DEN",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Out"
+    },
+    {
+      "name": "Cameron Johnson",
+      "team": "DEN",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Doubtful"
+    },
+    {
+      "name": "Spencer Jones",
+      "team": "DEN",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Out"
+    },
+    {
+      "name": "Julian Strawther",
+      "team": "DEN",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Out"
+    },
+    {
+      "name": "Malik Dia",
+      "team": "NOP",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Doubtful"
+    },
+    {
+      "name": "Yves Missi",
+      "team": "NOP",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Out"
+    },
+    {
+      "name": "Jaron PierreJr.",
+      "team": "NOP",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Doubtful"
+    },
+    {
+      "name": "Jordan Poole",
+      "team": "NOP",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Probable"
+    },
+    {
+      "name": "Julian Reese",
+      "team": "NOP",
+      "gameDate": "2026-10-28",
+      "matchup": "DEN@NOP",
+      "status": "Probable"
+    },
+    {
+      "name": "Jimmy ButlerIII",
+      "team": "GSW",
+      "gameDate": "2026-10-28",
+      "matchup": "GSW@MIN",
+      "status": "Out"
+    },
+    {
+      "name": "Yaxel Lendeborg",
+      "team": "GSW",
+      "gameDate": "2026-10-28",
+      "matchup": "GSW@MIN",
+      "status": "Questionable"
+    },
+    {
+      "name": "Moses Moody",
+      "team": "GSW",
+      "gameDate": "2026-10-28",
+      "matchup": "GSW@MIN",
+      "status": "Out"
+    },
+    {
+      "name": "Kristaps Porzingis",
+      "team": "GSW",
+      "gameDate": "2026-10-28",
+      "matchup": "GSW@MIN",
+      "status": "Out"
+    },
+    {
+      "name": "Donte DiVincenzo",
+      "team": "MIN",
+      "gameDate": "2026-10-28",
+      "matchup": "GSW@MIN",
+      "status": "Out"
+    },
+    {
+      "name": "Anthony Edwards",
+      "team": "MIN",
+      "gameDate": "2026-10-28",
+      "matchup": "GSW@MIN",
+      "status": "Out"
+    },
+    {
+      "name": "Steven Adams",
+      "team": "HOU",
+      "gameDate": "2026-10-28",
+      "matchup": "HOU@MIL",
+      "status": "Out"
+    },
+    {
+      "name": "Quadir Copeland",
+      "team": "HOU",
+      "gameDate": "2026-10-28",
+      "matchup": "HOU@MIL",
+      "status": "Out"
+    },
+    {
+      "name": "Julian Phillips",
+      "team": "HOU",
+      "gameDate": "2026-10-28",
+      "matchup": "HOU@MIL",
+      "status": "Out"
+    },
+    {
+      "name": "Alperen Sengun",
+      "team": "HOU",
+      "gameDate": "2026-10-28",
+      "matchup": "HOU@MIL",
+      "status": "Out"
+    },
+    {
+      "name": "Marcus Smart",
+      "team": "HOU",
+      "gameDate": "2026-10-28",
+      "matchup": "HOU@MIL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Tobe Awaka",
+      "team": "CHI",
+      "gameDate": "2026-10-28",
+      "matchup": "NYK@CHI",
+      "status": "Questionable"
+    },
+    {
+      "name": "Nic Claxton",
+      "team": "CHI",
+      "gameDate": "2026-10-28",
+      "matchup": "NYK@CHI",
+      "status": "Out"
+    },
+    {
+      "name": "Patrick Williams",
+      "team": "CHI",
+      "gameDate": "2026-10-28",
+      "matchup": "NYK@CHI",
+      "status": "Questionable"
+    },
+    {
+      "name": "Trey Alexander",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Out"
+    },
+    {
+      "name": "Kobe Bufkin",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Out"
+    },
+    {
+      "name": "Jaxson Hayes",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Questionable"
+    },
+    {
+      "name": "Harrison Ingram",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Out"
+    },
+    {
+      "name": "Jaren JacksonJr.",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Out"
+    },
+    {
+      "name": "Lauri Markkanen",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Questionable"
+    },
+    {
+      "name": "Jusuf Nurkic",
+      "team": "UTA",
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "status": "Out"
+    },
+    {
+      "name": "Alex Caruso",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Chet Holmgren",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Ajay Mitchell",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Thomas Sorber",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Nikola Topic",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Cason Wallace",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Jalen Williams",
+      "team": "OKC",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Santi Aldama",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Doubtful"
+    },
+    {
+      "name": "Tarik Biberovic",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Doubtful"
+    },
+    {
+      "name": "Sergio deLarrea",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Kyrie Irving",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Dereck LivelyII",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Out"
+    },
+    {
+      "name": "Naji Marshall",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Caleb Martin",
+      "team": "DAL",
+      "gameDate": "2026-10-28",
+      "matchup": "OKC@DAL",
+      "status": "Questionable"
+    },
+    {
+      "name": "Bradley Beal",
+      "team": "LAC",
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "status": "Out"
+    },
+    {
+      "name": "Rui Hachimura",
+      "team": "LAC",
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "status": "Out"
+    },
+    {
+      "name": "Brandon Ingram",
+      "team": "LAC",
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "status": "Out"
+    },
+    {
+      "name": "Jordan Miller",
+      "team": "LAC",
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "status": "Out"
+    },
+    {
+      "name": "YanicKonan Niederhauser",
+      "team": "LAC",
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "status": "Out"
+    },
+    {
+      "name": "Max Strus",
+      "team": "LAC",
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "status": "Out"
+    }
+  ],
+  "notSubmitted": [
+    {
+      "gameDate": "2026-10-28",
+      "matchup": "CHA@DET",
+      "team": "DET"
+    },
+    {
+      "gameDate": "2026-10-28",
+      "matchup": "NYK@CHI",
+      "team": "NYK"
+    },
+    {
+      "gameDate": "2026-10-28",
+      "matchup": "SAS@UTA",
+      "team": "SAS"
+    },
+    {
+      "gameDate": "2026-10-28",
+      "matchup": "LAL@LAC",
+      "team": "LAL"
+    },
+    {
+      "gameDate": "2026-10-29",
+      "matchup": "CLE@ATL",
+      "team": "CLE"
+    },
+    {
+      "gameDate": "2026-10-29",
+      "matchup": "CLE@ATL",
+      "team": "ATL"
+    },
+    {
+      "gameDate": "2026-10-29",
+      "matchup": "SAC@NOP",
+      "team": "SAC"
+    },
+    {
+      "gameDate": "2026-10-29",
+      "matchup": "SAC@NOP",
+      "team": "NOP"
+    },
+    {
+      "gameDate": "2026-10-29",
+      "matchup": "MEM@POR",
+      "team": "MEM"
+    },
+    {
+      "gameDate": "2026-10-29",
+      "matchup": "MEM@POR",
+      "team": "POR"
+    }
+  ]
+}
