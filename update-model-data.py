@@ -66,22 +66,24 @@ def parse_boxscore(data, event):
         if len(parsed) < 5 or not 230 <= team_minutes <= 360 or team_used <= 0:
             raise ValueError('Incomplete team box score')
         for row in parsed:
+            row['regulationMinutes'] = row['minutes']*240/team_minutes
             row['usage'] = 100*row['used']*(team_minutes/5)/(row['minutes']*team_used)
             row['dk'] = dk_points(row['stats'])
             records.append(row)
     return records
 
 def new_period():
-    return {'games': 0, 'minutes': 0, 'usageMinuteSum': 0, 'dkSum': 0, 'dkSqSum': 0, 'stats': dict.fromkeys(FIELDS, 0), 'recent': []}
+    return {'games': 0, 'minutes': 0, 'regulationMinuteSum': 0, 'usageMinuteSum': 0, 'dkSum': 0, 'dkSqSum': 0, 'stats': dict.fromkeys(FIELDS, 0), 'recent': []}
 
 def add_game(period, row, event):
     period['games'] += 1
     period['minutes'] += row['minutes']
+    period['regulationMinuteSum'] = period.get('regulationMinuteSum',0) + row['regulationMinutes']
     period['usageMinuteSum'] += row['usage']*row['minutes']
     period['dkSum'] += row['dk']
     period['dkSqSum'] += row['dk']**2
     for k in FIELDS: period['stats'][k] += row['stats'][k]
-    period['recent'].append({'id': event['id'], 'date': event['date'], 'minutes': row['minutes']})
+    period['recent'].append({'id': event['id'], 'date': event['date'], 'minutes': row['minutes'], 'regulationMinutes': row['regulationMinutes']})
     period['recent'] = sorted(period['recent'], key=lambda r: r['date'], reverse=True)[:5]
 
 def date_range(start, end):
@@ -98,7 +100,7 @@ def refresh():
     cache = None
     try:
         downloaded = get_json(PUBLISHED + '?day=' + today.isoformat())
-        if downloaded.get('version') == 1 and downloaded.get('season') == season and isinstance(downloaded.get('players'), list):
+        if downloaded.get('version') == 1 and downloaded.get('minuteVersion',0) >= 2 and downloaded.get('season') == season and isinstance(downloaded.get('players'), list):
             cache = downloaded
             target.write_text(json.dumps(cache, separators=(',', ':')) + '\n')
     except Exception:
@@ -107,6 +109,9 @@ def refresh():
                 old = json.loads(target.read_text())
                 if old.get('season') == season: cache = old
             except Exception: pass
+    if cache is None and target.exists():
+        old=json.loads(target.read_text())
+        if old.get('season') == season and old.get('minuteVersion',0) >= 2: cache=old
     if cache and cache.get('asOfDate') == today.isoformat() and not cache.get('failedGames'):
         print('Daily model inputs already current:', today, flush=True)
         return
@@ -134,7 +139,9 @@ def refresh():
         folder = Path('.model-cache')
         folder.mkdir(exist_ok=True)
         file = folder / (str(event['id']) + '.json')
-        if file.exists(): return json.loads(file.read_text())
+        if file.exists():
+            cached_rows=json.loads(file.read_text())
+            if all('regulationMinutes' in r for r in cached_rows): return cached_rows
         records = parse_boxscore(get_json(BASE + 'summary?event=' + str(event['id'])), event)
         file.write_text(json.dumps(records))
         return records
@@ -157,7 +164,7 @@ def refresh():
             if count % 25 == 0: print('Parsed', count, '/', len(events), 'box scores', flush=True)
     if not players: raise ValueError('No valid model input players')
     if len(failed) > max(2, len(events)*.05): raise ValueError('Over 5% of requested box scores unavailable; previous inputs retained')
-    data = {'version': 1, 'failedGames': failed, 'season': season, 'asOfDate': today.isoformat(), 'updatedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'historicalWindow': f'{start_year}-03-15 through {start_year}-04-14 (regular season only)', 'currentWindow': f'{start_year}-10-01 through {today - dt.timedelta(days=1)} (regular season only)', 'source': 'ESPN completed NBA regular-season box scores', 'sourceUrl': 'https://www.espn.com/nba/scoreboard', 'processedGames': sorted(processed), 'players': sorted(players.values(), key=lambda p: p['name'])}
+    data = {'version': 1, 'minuteVersion': 2, 'failedGames': failed, 'season': season, 'asOfDate': today.isoformat(), 'updatedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'historicalWindow': f'{start_year}-03-15 through {start_year}-04-14 (regular season only)', 'currentWindow': f'{start_year}-10-01 through {today - dt.timedelta(days=1)} (regular season only)', 'source': 'ESPN completed NBA regular-season box scores', 'sourceUrl': 'https://www.espn.com/nba/scoreboard', 'processedGames': sorted(processed), 'players': sorted(players.values(), key=lambda p: p['name'])}
     temporary = target.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, separators=(',', ':')) + '\n')
     temporary.replace(target)
