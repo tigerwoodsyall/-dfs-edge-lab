@@ -1,0 +1,54 @@
+name: Publish official NBA injuries
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# This workflow cannot push commits or edit repository source files.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install report parser
+        run: python -m pip install pdfplumber==0.11.9
+      - name: Read latest official NBA injury report
+        run: python update-nba-injuries.py
+      - name: Package public website and refreshed injury feed
+        run: |
+          mkdir -p _site
+          cp index.html ./*.js ./*.json _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish site and injury feed
+        id: deployment
+        uses: actions/deploy-pages@v4
