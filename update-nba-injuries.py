@@ -3,6 +3,7 @@ import datetime as dt
 import html
 import io
 import json
+import os
 from pathlib import Path
 import re
 import urllib.request
@@ -96,7 +97,7 @@ def refresh(output='nba-injuries.json', now=None):
     if now - report_time > dt.timedelta(hours=36):
         raise ValueError('Latest official report is over 36 hours old')
     records, pending = parse_report(get(report[0]))
-    data = {'version': 1, 'checkedAt': now.isoformat(), 'reportAt': report_time.isoformat(), 'sourceUrl': report[0], 'indexUrl': page_url, 'players': records, 'notSubmitted': pending}
+    data = {'version': 1, 'schedulerEnabled': os.environ.get('GITHUB_ACTIONS') == 'true', 'checkedAt': now.isoformat(), 'reportAt': report_time.isoformat(), 'sourceUrl': report[0], 'indexUrl': page_url, 'players': records, 'notSubmitted': pending}
     target = Path(output)
     temporary = target.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')

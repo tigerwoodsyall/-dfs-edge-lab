@@ -729,5 +729,6 @@
       "matchup": "MEM@POR",
       "team": "POR"
     }
-  ]
+  ],
+  "schedulerEnabled": false
 }
