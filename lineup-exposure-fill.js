@@ -35,7 +35,7 @@ async function buildExposureFill(o,run,search=searchLineup){
   }
   run.lineups.push(lineup);lineup.players.forEach(p=>used.set(p.id,(used.get(p.id)||0)+1));if(lineup.players.some(p=>String(p.id)===o.id))targetCount++;
  }
- checkGeneration(run,true);if(targetCount<o.targetMin||targetCount>o.targetMax)throw Error('Exposure target could not be met. Previous batch kept.');return {generated,reused,targetCount};
+ checkGeneration(run,true);if(targetCount<o.targetMin||targetCount>o.targetMax)throw Error('Exposure target could not be met. Previous batch kept.');run.lineups.sort((a,b)=>b.points-a.points);return {generated,reused,targetCount};
 }
 let exposureFillBusy=false;
 async function runExposureFill(kind){
@@ -45,3 +45,6 @@ async function runExposureFill(kind){
  }catch(e){$('lineupFillStatus').textContent=e.message||'Could not complete the batch. Previous lineups kept.'}finally{if(run&&activeGeneration===run)activeGeneration=null;exposureFillBusy=false;['lineupTrimPlayer','lineupExposureMin','lineupExposureCap','lineupExposureTarget'].forEach(id=>$(id).disabled=false);$('lineupFillMin').disabled=false;$('lineupFillMax').disabled=false;$('lineupFillStop').hidden=true;if(typeof renderContestEntries==='function')renderContestEntries()}
 }
 $('lineupFillMin').onclick=()=>runExposureFill('min');$('lineupFillMax').onclick=()=>runExposureFill('max');$('lineupFillStop').onclick=()=>{if(exposureFillBusy&&activeGeneration){activeGeneration.cancelled=true;$('lineupFillStatus').textContent='Stopping… Previous batch will be kept.'}};
+
+const exposureFillPreviousUndo=$('lineupUndo').onclick;
+$('lineupUndo').onclick=()=>{const before=state.lineups;exposureFillPreviousUndo();if(state.lineups!==before)$('lineupFillStatus').textContent='Previous batch restored. Set a target and refill again when needed.'};
