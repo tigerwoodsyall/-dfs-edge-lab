@@ -90,7 +90,8 @@ def date_range(start, end):
         start += dt.timedelta(days=1)
 
 def refresh():
-    today = dt.datetime.now(ET).date()
+    # Refresh after 6 a.m. ET so late West Coast games finish before a day is closed.
+    today = (dt.datetime.now(ET) - dt.timedelta(hours=6)).date()
     start_year = today.year if today.month >= 8 else today.year - 1
     season = start_year + 1
     target = Path('model-data.json')
