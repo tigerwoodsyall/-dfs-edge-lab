@@ -48,13 +48,16 @@ def parse_boxscore(data, event):
         abbreviation = team['team']['abbreviation']
         abbreviation = {'GS': 'GSW', 'SA': 'SAS', 'NY': 'NYK', 'NO': 'NOP', 'WSH': 'WAS', 'UTAH': 'UTA'}.get(abbreviation, abbreviation)
         parsed = []
+        dnps = []
         for table in team['statistics']:
             labels = table.get('names') or table.get('labels')
             if not labels or not set(['MIN', 'PTS', 'FG', '3PT', 'FT', 'REB', 'AST', 'TO', 'STL', 'BLK']).issubset(labels):
                 continue
             for row in table.get('athletes', []):
-                if row.get('didNotPlay') or not row.get('stats'):
+                if row.get('didNotPlay'):
+                    dnps.append(row['athlete'])
                     continue
+                if not row.get('stats'):continue
                 values = dict(zip(labels, row['stats']))
                 if values.get('MIN') in (None, '', '--', '-'):
                     continue
@@ -77,12 +80,18 @@ def parse_boxscore(data, event):
             row['usage'] = 100*row['used']*(team_minutes/5)/(row['minutes']*team_used)
             row['dk'] = dk_points(row['stats'])
             records.append(row)
+        for athlete in dnps:
+            records.append({'id':str(athlete['id']),'name':athlete['displayName'],'team':abbreviation,'minutes':0,'regulationMinutes':0,'usage':0,'dk':0,'stats':dict.fromkeys(FIELDS,0),'shooting':dict.fromkeys(SHOOTING_FIELDS,0),'starter':False,'fouls':0,'margin':margin,'gameDate':game_date,'opponent':next(({'GS':'GSW','SA':'SAS','NY':'NYK','NO':'NOP','WSH':'WAS','UTAH':'UTA'}.get(t['team']['abbreviation'],t['team']['abbreviation']) for t in teams if t['team']['id']!=team['team']['id']),None),'ejected':False,'earlyExit':False,'didNotPlay':True})
     return records
 
 def new_period():
     return {'games': 0, 'minutes': 0, 'regulationMinuteSum': 0, 'usageMinuteSum': 0, 'dkSum': 0, 'dkSqSum': 0, 'stats': dict.fromkeys(FIELDS, 0), 'shooting': dict.fromkeys(SHOOTING_FIELDS,0), 'recent': []}
 
 def add_game(period, row, event):
+    if row['minutes']<=0:
+        period['recent'].append({'id':event['id'],'date':event['date'],'minutes':0,'regulationMinutes':0,**{k:row.get(k) for k in ('starter','fouls','margin','gameDate','team','opponent','ejected','earlyExit','didNotPlay')}})
+        period['recent']=sorted(period['recent'],key=lambda r:r['date'],reverse=True)[:20]
+        return
     period['games'] += 1
     period['minutes'] += row['minutes']
     period['regulationMinuteSum'] = period.get('regulationMinuteSum',0) + row['regulationMinutes']
