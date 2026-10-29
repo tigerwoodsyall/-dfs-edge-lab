@@ -1,7 +1,7 @@
 /* Build a complete replacement batch before committing; no saved lineups change on failure. */
 function exposureFillOptions(kind){
  const id=$('lineupTrimPlayer').value,raw=kind==='min'?$('lineupExposureMin').value:$('lineupExposureCap').value,percent=Number(raw),count=Number($('lineupExposureTarget').value);
- if(!id)throw Error('Choose a player to adjust.');if(String(raw).trim()===''||!Number.isFinite(percent)||percent<0||percent>100)throw Error('Enter an exposure percentage from 0 to 100.');if(!Number.isInteger(count)||count<1||count>1000)throw Error('Target lineup count must be a whole number from 1 to 1000.');
+ if(!id)throw Error('Choose a player to adjust.');if(String(raw).trim()===''||!Number.isFinite(percent)||percent<0||percent>100)throw Error('Enter an exposure percentage from 0 to 100.');if(!Number.isInteger(count)||count<1||count>2500)throw Error('Target lineup count must be a whole number from 1 to 2500.');
  const cap=Number($('cap').value),minSalary=Number($('minsalary').value),unique=Number($('unique').value),globalExposure=Number($('exposure').value);
  if(!Number.isFinite(cap)||cap<=0||cap>50000||!Number.isFinite(minSalary)||minSalary<0||minSalary>cap)throw Error('Review salary settings in Optimizer.');if(!Number.isInteger(unique)||unique<1||unique>8||!Number.isFinite(globalExposure)||globalExposure<=0||globalExposure>100)throw Error('Review unique-player and maximum-exposure settings in Optimizer.');
  const pool=state.players.filter(p=>!p.fade&&num(p.salary)>0&&num(p.projection)>0&&!(typeof nbaOut==='function'&&nbaOut(p))),target=state.players.find(p=>String(p.id)===id);
