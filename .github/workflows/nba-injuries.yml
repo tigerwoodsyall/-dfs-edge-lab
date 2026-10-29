@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,7 +31,7 @@ jobs:
       - name: Read latest official NBA injury report
         run: python update-nba-injuries.py
       - name: Refresh daily model inputs
-        timeout-minutes: 3
+        timeout-minutes: 10
         continue-on-error: true
         run: python update-model-data.py
       - name: Refresh daily all-team roster inputs
