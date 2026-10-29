@@ -40,6 +40,10 @@ def parse_boxscore(data, event):
     if len(teams) != 2:
         raise ValueError('Missing team box score')
     records = []
+    competitors=header.get('competitions',[{}])[0].get('competitors',[])
+    scores=[float(c['score']) for c in competitors if str(c.get('score','')).replace('.','',1).isdigit()]
+    margin=abs(scores[0]-scores[1]) if len(scores)==2 else None
+    game_date=dt.datetime.fromisoformat(event['date'].replace('Z','+00:00')).astimezone(ET).date().isoformat()
     for team in teams:
         abbreviation = team['team']['abbreviation']
         abbreviation = {'GS': 'GSW', 'SA': 'SAS', 'NY': 'NYK', 'NO': 'NOP', 'WSH': 'WAS', 'UTAH': 'UTA'}.get(abbreviation, abbreviation)
@@ -64,7 +68,7 @@ def parse_boxscore(data, event):
                 if any(not math.isfinite(v) or v<0 for v in shooting.values()) or fgm>fga or tpm>tpa or ftm>fta or tpm>fgm or tpa>fga: raise ValueError('Invalid shooting totals')
                 if any(not math.isfinite(v) or v < 0 for v in stats.values()): raise ValueError('Invalid counting stat')
                 athlete = row['athlete']
-                parsed.append({'id': str(athlete['id']), 'name': athlete['displayName'], 'team': abbreviation, 'minutes': mins, 'stats': stats, 'shooting': shooting, 'used': fga + .44*fta + stats['to']})
+                parsed.append({'id': str(athlete['id']), 'name': athlete['displayName'], 'team': abbreviation, 'minutes': mins, 'stats': stats, 'shooting': shooting, 'starter':row.get('starter') if isinstance(row.get('starter'),bool) else None, 'fouls':float(values['PF']) if str(values.get('PF','')).isdigit() else None, 'margin':margin, 'gameDate':game_date, 'opponent':next(({'GS':'GSW','SA':'SAS','NY':'NYK','NO':'NOP','WSH':'WAS','UTAH':'UTA'}.get(t['team']['abbreviation'],t['team']['abbreviation']) for t in teams if t['team']['id']!=team['team']['id']),None), 'ejected':row.get('ejected') is True, 'earlyExit':any(word in str(row.get('reason','')).lower() for word in ('left game','did not return','ejected')), 'used': fga + .44*fta + stats['to']})
         team_minutes, team_used = sum(r['minutes'] for r in parsed), sum(r['used'] for r in parsed)
         if len(parsed) < 5 or not 230 <= team_minutes <= 360 or team_used <= 0:
             raise ValueError('Incomplete team box score')
@@ -87,8 +91,8 @@ def add_game(period, row, event):
     period['dkSqSum'] += row['dk']**2
     for k in FIELDS: period['stats'][k] += row['stats'][k]
     for k in SHOOTING_FIELDS: period['shooting'][k] += row['shooting'][k]
-    period['recent'].append({'id': event['id'], 'date': event['date'], 'minutes': row['minutes'], 'regulationMinutes': row['regulationMinutes']})
-    period['recent'] = sorted(period['recent'], key=lambda r: r['date'], reverse=True)[:5]
+    period['recent'].append({'id': event['id'], 'date': event['date'], 'minutes': row['minutes'], 'regulationMinutes': row['regulationMinutes'], **{k:row.get(k) for k in ('starter','fouls','margin','gameDate','team','opponent','ejected','earlyExit')}})
+    period['recent'] = sorted(period['recent'], key=lambda r: r['date'], reverse=True)[:20]
 
 def date_range(start, end):
     while start <= end:
@@ -104,18 +108,18 @@ def refresh():
     cache = None
     try:
         downloaded = get_json(PUBLISHED + '?day=' + today.isoformat())
-        if downloaded.get('version') == 1 and downloaded.get('shootingVersion',0) >= 1 and downloaded.get('season') == season and isinstance(downloaded.get('players'), list):
+        if downloaded.get('version') == 1 and downloaded.get('roleVersion',0) >= 1 and downloaded.get('season') == season and isinstance(downloaded.get('players'), list):
             cache = downloaded
             target.write_text(json.dumps(cache, separators=(',', ':')) + '\n')
     except Exception:
         if target.exists():
             try:
                 old = json.loads(target.read_text())
-                if old.get('season') == season and old.get('shootingVersion',0)>=1: cache = old
+                if old.get('season') == season and old.get('roleVersion',0)>=1: cache = old
             except Exception: pass
     if cache is None and target.exists():
         old=json.loads(target.read_text())
-        if old.get('season') == season and old.get('shootingVersion',0) >= 1: cache=old
+        if old.get('season') == season and old.get('roleVersion',0) >= 1: cache=old
     if cache and cache.get('asOfDate') == today.isoformat() and not cache.get('failedGames'):
         print('Daily model inputs already current:', today, flush=True)
         return
@@ -145,7 +149,7 @@ def refresh():
         file = folder / (str(event['id']) + '.json')
         if file.exists():
             cached_rows=json.loads(file.read_text())
-            if all('regulationMinutes' in r and 'shooting' in r for r in cached_rows): return cached_rows
+            if all('regulationMinutes' in r and 'shooting' in r and 'starter' in r for r in cached_rows): return cached_rows
         records = parse_boxscore(get_json(BASE + 'summary?event=' + str(event['id'])), event)
         file.write_text(json.dumps(records))
         return records
@@ -167,8 +171,8 @@ def refresh():
             processed.add(event['id'])
             if count % 25 == 0: print('Parsed', count, '/', len(events), 'box scores', flush=True)
     if not players: raise ValueError('No valid model input players')
-    if len(failed) > max(2, len(events)*.05): raise ValueError('Over 5% of requested box scores unavailable; previous inputs retained')
-    data = {'version': 1, 'minuteVersion': 2, 'shootingVersion': 1, 'failedGames': failed, 'season': season, 'asOfDate': today.isoformat(), 'updatedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'historicalWindow': f'{start_year-1}-10-01 through {start_year}-04-14 (regular season only)', 'currentWindow': f'{start_year}-10-01 through {today - dt.timedelta(days=1)} (regular season only)', 'source': 'ESPN completed NBA regular-season box scores', 'sourceUrl': 'https://www.espn.com/nba/scoreboard', 'processedGames': sorted(processed), 'players': sorted(players.values(), key=lambda p: p['name'])}
+    if len(failed) > max(2, (len(processed)+len(failed))*.05): raise ValueError('Over 5% of requested box scores unavailable; previous inputs retained')
+    data = {'version': 1, 'minuteVersion': 2, 'shootingVersion': 1, 'roleVersion': 1, 'failedGames': failed, 'season': season, 'asOfDate': today.isoformat(), 'updatedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'historicalWindow': f'{start_year-1}-10-01 through {start_year}-04-14 (regular season only)', 'currentWindow': f'{start_year}-10-01 through {today - dt.timedelta(days=1)} (regular season only)', 'source': 'ESPN completed NBA regular-season box scores', 'sourceUrl': 'https://www.espn.com/nba/scoreboard', 'processedGames': sorted(processed), 'players': sorted(players.values(), key=lambda p: p['name'])}
     temporary = target.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, separators=(',', ':')) + '\n')
     temporary.replace(target)
