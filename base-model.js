@@ -23,7 +23,7 @@ function baseProjectionSD(p){
  return {value:Math.max(3,Math.sqrt(variance)*minutes/Math.max(1,prior)),source:'Box-score SD · minutes adjusted'};
 }
 function baseShootingRegression(h,c){
- const notes=[],result={pts:0,threes:0,notes};if(!h||!c||h.games<10||h.minutes<200||c.games>=20||!h.shooting||!c.shooting)return result;
+ const notes=[],result={pts:0,threes:0,notes};if(!h||!c||h.games<10||h.minutes*h.games<200||c.games>=20||!h.shooting||!c.shooting)return result;
  const hs=h.shooting,cs=c.shooting;
  for(const [label,hm,ha,cm,ca,prior,gap,points] of [
  ['2PT',hs.fgm-hs.tpm,hs.fga-hs.tpa,cs.fgm-cs.tpm,cs.fga-cs.tpa,100,.05,2],
@@ -31,7 +31,7 @@ function baseShootingRegression(h,c){
  ['FT',hs.ftm,hs.fta,cs.ftm,cs.fta,50,.08,1]]){
   if(![hm,ha,cm,ca].every(Number.isFinite)||ha<20||ca<=0||hm<0||hm>ha||cm<0||cm>ca)continue;
   const historical=hm/ha,current=cm/ca;if(Math.abs(historical-current)<gap)continue;
-  const strength=Math.min(prior,ha)*Math.max(0,1-c.games/20),expected=(cm+strength*historical)/(ca+strength),madeRateDelta=ca/c.minutes*(expected-current);
+  const strength=Math.min(prior,ha)*Math.max(0,1-c.games/20),expected=(cm+strength*historical)/(ca+strength),madeRateDelta=ca/(c.minutes*c.games)*(expected-current);
   result.pts+=points*madeRateDelta;if(label==='3PT')result.threes+=madeRateDelta;
   notes.push(label+' '+(100*current).toFixed(1)+'% → '+(100*expected).toFixed(1)+'% (last season '+(100*historical).toFixed(1)+'%)');
  }
