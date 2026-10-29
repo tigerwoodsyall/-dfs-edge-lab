@@ -12,7 +12,7 @@
 <div class="wrap">
 <nav class="tabs" id="tabs"><button class="tab active" data-tab="dashboard">Dashboard</button><button class="tab" data-tab="baseModel">Base Model</button><button class="tab" data-tab="rotations">Rotations</button><button class="tab" data-tab="players">Projections</button><button class="tab" data-tab="blend">Projection Blend</button><button class="tab" data-tab="nbaInjuries">NBA Injuries</button><button class="tab" data-tab="sim">Simulations</button><button class="tab" data-tab="optimizer">Optimizer</button><button class="tab" data-tab="lineups">My Lineups</button><button class="tab" data-tab="lateSwap">Late Swap</button></nav>
 <div id="nbaInjuryBanner" class="status" role="status" hidden></div><section id="dashboard" class="screen active">
-<div class="card"><h2>🏀 NBA Slate Control</h2><p>Load the Oct 28, 2026 DraftKings NBA main slate (9 games), or import a salary export for another slate.</p><button id="loadMainSlate">Load Oct 28 main slate</button><div id="slateStatus" class="status" role="status"></div><p class="note">Initial projections use DraftKings historical fantasy-point averages; ceilings start at 1.4× those averages. Ownership and minutes start at 0. Import current projections or edit these values before using them for research. Injury status is not supplied in the salary export.</p>
+<div class="card"><h2>🏀 NBA Slate Control</h2><p>Load the Oct 29, 2026 DraftKings NBA main slate (3 games), or import a salary export for another slate.</p><button id="loadMainSlate">Load Oct 29 main slate</button><div id="slateStatus" class="status" role="status"></div><p class="note">Initial projections use DraftKings historical fantasy-point averages; ceilings start at 1.4× those averages. Ownership and minutes start at 0. Import current projections or edit these values before using them for research. Injury status is not supplied in the salary export.</p>
 <div class="row"><div class="metric"><b id="count">0</b><small>Available players</small></div><div class="metric"><b id="projected">0</b><small>Projected players</small></div><div class="metric"><b id="saved">0</b><small>Built lineups</small></div></div></div>
 <div class="card"><h3>1 · Import DraftKings salaries</h3><input id="salaryFile" class="file" type="file" accept=".csv,text/csv"><p class="note">Accepts standard DK salary CSV columns such as Name, Position, Salary, TeamAbbrev, AvgPointsPerGame, ID and Game Info. Game Info is required to verify the two-game rule. Imports replace the current player pool.</p><button id="importSalary">Import Salaries</button></div>
 <div class="card"><h3>2 · Import projections (optional)</h3><input id="projFile" class="file" type="file" accept=".csv,text/csv"><p class="note">Columns: Name (or ID), Projection, Ceiling, Ownership, Minutes. Matched players are updated. Ownership is percentage (e.g. 18).</p><button id="importProj">Import Projections</button></div>
@@ -142,15 +142,15 @@ $('useSimResults').onclick=()=>{if(!validSimBatch()){renderOptimizer();return}co
 
 
 function applyMainSlate(slate){
-if(slate.date!=='2026-10-28'||!Array.isArray(slate.players)||!slate.players.length)throw Error('Invalid main-slate data.');
+if(slate.date!=='2026-10-29'||!Array.isArray(slate.players)||!slate.players.length)throw Error('Invalid main-slate data.');
 const players=slate.players.map(r=>({id:String(r.id),name:String(r.name),position:String(r.position),team:String(r.team),salary:num(r.salary),gameInfo:String(r.gameInfo),average:num(r.average),projection:num(r.average),ceiling:+(num(r.average)*1.4).toFixed(2),ownership:0,minutes:0,lock:false,fade:false}));
 if(new Set(players.map(p=>p.id)).size!==players.length||players.some(p=>!/^\d+$/.test(p.id)||!p.name||!pos(p.position).length||p.salary<=0||!gameKey(p)))throw Error('Incomplete player IDs, salaries, positions or games.');
-state.players=players;state.lineups=[];state.demo=false;state.simulationBatch=null;state.teamLimits={};state.slateLabel='DraftKings NBA Main Slate · Oct 28, 2026 · '+players.length+' players · '+lineupGames(players)+' games';save();renderAll();return players.length;
+state.players=players;state.lineups=[];state.demo=false;state.simulationBatch=null;state.teamLimits={};state.slateLabel='DraftKings NBA Main Slate · Oct 29, 2026 · '+players.length+' players · '+lineupGames(players)+' games';save();renderAll();return players.length;
 }
 async function loadMainSlate(){
-$('loadMainSlate').disabled=true;$('slateStatus').textContent='Loading Oct 28 DraftKings main slate…';
-try{const response=await fetch('./nba-main-2026-10-28.json',{cache:'no-cache'});if(!response.ok)throw Error('Salary data could not be downloaded.');applyMainSlate(await response.json())}
-catch(e){$('slateStatus').textContent='Main slate could not load: '+e.message+' Try Load Oct 28 main slate again.'}
+$('loadMainSlate').disabled=true;$('slateStatus').textContent='Loading Oct 29 DraftKings main slate…';
+try{const response=await fetch('./nba-main-2026-10-29.json',{cache:'no-cache'});if(!response.ok)throw Error('Salary data could not be downloaded.');applyMainSlate(await response.json())}
+catch(e){$('slateStatus').textContent='Main slate could not load: '+e.message+' Try Load Oct 29 main slate again.'}
 finally{$('loadMainSlate').disabled=false}
 }
 $('loadMainSlate').onclick=loadMainSlate;
