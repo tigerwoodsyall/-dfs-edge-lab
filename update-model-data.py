@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 ET = ZoneInfo('America/New_York')
 BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/'
 PUBLISHED = 'https://tigerwoodsyall.github.io/-dfs-edge-lab/model-data.json'
+SHOOTING_FIELDS = ('fgm','fga','tpm','tpa','ftm','fta')
 FIELDS = ('pts', 'reb', 'ast', 'stl', 'blk', 'to', 'threes')
 
 def get_json(url):
@@ -58,10 +59,12 @@ def parse_boxscore(data, event):
                 if mins > 70: raise ValueError('Invalid minutes')
                 stats = {k: float(values[label]) for k, label in [('pts','PTS'),('reb','REB'),('ast','AST'),('stl','STL'),('blk','BLK'),('to','TO')]}
                 stats['threes'] = float(values['3PT'].split('-')[0])
-                fga, fta = float(values['FG'].split('-')[1]), float(values['FT'].split('-')[1])
+                fgm,fga=map(float,values['FG'].split('-'));tpm,tpa=map(float,values['3PT'].split('-'));ftm,fta=map(float,values['FT'].split('-'))
+                shooting=dict(zip(SHOOTING_FIELDS,(fgm,fga,tpm,tpa,ftm,fta)))
+                if any(not math.isfinite(v) or v<0 for v in shooting.values()) or fgm>fga or tpm>tpa or ftm>fta or tpm>fgm or tpa>fga: raise ValueError('Invalid shooting totals')
                 if any(not math.isfinite(v) or v < 0 for v in stats.values()): raise ValueError('Invalid counting stat')
                 athlete = row['athlete']
-                parsed.append({'id': str(athlete['id']), 'name': athlete['displayName'], 'team': abbreviation, 'minutes': mins, 'stats': stats, 'used': fga + .44*fta + stats['to']})
+                parsed.append({'id': str(athlete['id']), 'name': athlete['displayName'], 'team': abbreviation, 'minutes': mins, 'stats': stats, 'shooting': shooting, 'used': fga + .44*fta + stats['to']})
         team_minutes, team_used = sum(r['minutes'] for r in parsed), sum(r['used'] for r in parsed)
         if len(parsed) < 5 or not 230 <= team_minutes <= 360 or team_used <= 0:
             raise ValueError('Incomplete team box score')
@@ -73,7 +76,7 @@ def parse_boxscore(data, event):
     return records
 
 def new_period():
-    return {'games': 0, 'minutes': 0, 'regulationMinuteSum': 0, 'usageMinuteSum': 0, 'dkSum': 0, 'dkSqSum': 0, 'stats': dict.fromkeys(FIELDS, 0), 'recent': []}
+    return {'games': 0, 'minutes': 0, 'regulationMinuteSum': 0, 'usageMinuteSum': 0, 'dkSum': 0, 'dkSqSum': 0, 'stats': dict.fromkeys(FIELDS, 0), 'shooting': dict.fromkeys(SHOOTING_FIELDS,0), 'recent': []}
 
 def add_game(period, row, event):
     period['games'] += 1
@@ -83,6 +86,7 @@ def add_game(period, row, event):
     period['dkSum'] += row['dk']
     period['dkSqSum'] += row['dk']**2
     for k in FIELDS: period['stats'][k] += row['stats'][k]
+    for k in SHOOTING_FIELDS: period['shooting'][k] += row['shooting'][k]
     period['recent'].append({'id': event['id'], 'date': event['date'], 'minutes': row['minutes'], 'regulationMinutes': row['regulationMinutes']})
     period['recent'] = sorted(period['recent'], key=lambda r: r['date'], reverse=True)[:5]
 
@@ -100,24 +104,24 @@ def refresh():
     cache = None
     try:
         downloaded = get_json(PUBLISHED + '?day=' + today.isoformat())
-        if downloaded.get('version') == 1 and downloaded.get('minuteVersion',0) >= 2 and downloaded.get('season') == season and isinstance(downloaded.get('players'), list):
+        if downloaded.get('version') == 1 and downloaded.get('shootingVersion',0) >= 1 and downloaded.get('season') == season and isinstance(downloaded.get('players'), list):
             cache = downloaded
             target.write_text(json.dumps(cache, separators=(',', ':')) + '\n')
     except Exception:
         if target.exists():
             try:
                 old = json.loads(target.read_text())
-                if old.get('season') == season: cache = old
+                if old.get('season') == season and old.get('shootingVersion',0)>=1: cache = old
             except Exception: pass
     if cache is None and target.exists():
         old=json.loads(target.read_text())
-        if old.get('season') == season and old.get('minuteVersion',0) >= 2: cache=old
+        if old.get('season') == season and old.get('shootingVersion',0) >= 1: cache=old
     if cache and cache.get('asOfDate') == today.isoformat() and not cache.get('failedGames'):
         print('Daily model inputs already current:', today, flush=True)
         return
     dates = []
     if not cache:
-        dates += [('historical', d) for d in date_range(dt.date(start_year, 3, 15), dt.date(start_year, 4, 14))]
+        dates += [('historical', d) for d in date_range(dt.date(start_year-1, 10, 1), dt.date(start_year, 4, 14))]
     current_start = dt.date.fromisoformat(cache['asOfDate']) - dt.timedelta(days=1) if cache else dt.date(start_year, 10, 1)
     dates += [('current', d) for d in date_range(current_start, today - dt.timedelta(days=1))]
     events = {e['id']:e for e in cache.get('failedGames', [])} if cache else {}
@@ -141,7 +145,7 @@ def refresh():
         file = folder / (str(event['id']) + '.json')
         if file.exists():
             cached_rows=json.loads(file.read_text())
-            if all('regulationMinutes' in r for r in cached_rows): return cached_rows
+            if all('regulationMinutes' in r and 'shooting' in r for r in cached_rows): return cached_rows
         records = parse_boxscore(get_json(BASE + 'summary?event=' + str(event['id'])), event)
         file.write_text(json.dumps(records))
         return records
@@ -164,7 +168,7 @@ def refresh():
             if count % 25 == 0: print('Parsed', count, '/', len(events), 'box scores', flush=True)
     if not players: raise ValueError('No valid model input players')
     if len(failed) > max(2, len(events)*.05): raise ValueError('Over 5% of requested box scores unavailable; previous inputs retained')
-    data = {'version': 1, 'minuteVersion': 2, 'failedGames': failed, 'season': season, 'asOfDate': today.isoformat(), 'updatedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'historicalWindow': f'{start_year}-03-15 through {start_year}-04-14 (regular season only)', 'currentWindow': f'{start_year}-10-01 through {today - dt.timedelta(days=1)} (regular season only)', 'source': 'ESPN completed NBA regular-season box scores', 'sourceUrl': 'https://www.espn.com/nba/scoreboard', 'processedGames': sorted(processed), 'players': sorted(players.values(), key=lambda p: p['name'])}
+    data = {'version': 1, 'minuteVersion': 2, 'shootingVersion': 1, 'failedGames': failed, 'season': season, 'asOfDate': today.isoformat(), 'updatedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'historicalWindow': f'{start_year-1}-10-01 through {start_year}-04-14 (regular season only)', 'currentWindow': f'{start_year}-10-01 through {today - dt.timedelta(days=1)} (regular season only)', 'source': 'ESPN completed NBA regular-season box scores', 'sourceUrl': 'https://www.espn.com/nba/scoreboard', 'processedGames': sorted(processed), 'players': sorted(players.values(), key=lambda p: p['name'])}
     temporary = target.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, separators=(',', ':')) + '\n')
     temporary.replace(target)
