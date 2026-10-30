@@ -21,7 +21,7 @@ function readLateOptions(){
  const min=Number($('lateMinSalary').value),cap=Number($('lateCap').value),mode=$('lateMode').value;
  if(!Number.isInteger(min)||!Number.isInteger(cap)||min<0||cap<0||cap>50000||min>cap)throw Error('Use a salary maximum no greater than $50,000 and a minimum between 0 and that maximum.');
  const rules=new Map(currentTeamNames().map(t=>[t,teamRule(t)]));for(const [team,r] of rules)if(!Number.isInteger(r.min)||!Number.isInteger(r.max)||r.min<0||r.max>8||r.max<r.min)throw Error('Invalid team limits for '+team+'. Update them in Optimizer.');
- return {min,cap,mode,rules,trials:Number($('lateTrials').value)||1500};
+ return {min,cap,mode,rules,trials:Math.max(1,Math.min(8000,Number($('lateTrials').value)||100))};
 }
 function lateSignature(){return JSON.stringify({players:state.players.map(p=>[String(p.id),p.name,p.position,p.team,p.salary,p.gameInfo,p.projection,p.ceiling,p.ownership,!!p.fade,!!p.lock]),teams:state.teamLimits||{},mode:$('lateMode').value,min:$('lateMinSalary').value,cap:$('lateCap').value,trials:$('lateTrials').value})}
 function lateSlateSignature(players=state.players){return JSON.stringify(players.map(p=>[String(p.id),p.position,p.team,p.salary,p.gameInfo]).sort((a,b)=>a[0].localeCompare(b[0])))}
