@@ -12,8 +12,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  # Separate this publisher from the legacy Pages queue, which can retain stale runs.
+  group: nba-pages-publisher-v2
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -64,5 +65,3 @@ jobs:
       - name: Publish site and injury feed
         id: deployment
         uses: actions/deploy-pages@v4
-
-
