@@ -12,7 +12,7 @@
 <div class="wrap">
 <nav class="tabs" id="tabs"><button class="tab active" data-tab="dashboard">Dashboard</button><button class="tab" data-tab="baseModel">Base Model</button><button class="tab" data-tab="rotations">Rotations</button><button class="tab" data-tab="players">Projections</button><button class="tab" data-tab="blend">Projection Blend</button><button class="tab" data-tab="nbaInjuries">NBA Injuries</button><button class="tab" data-tab="sim">Simulations</button><button class="tab" data-tab="optimizer">Optimizer</button><button class="tab" data-tab="lineupSim">Lineup Sims</button><button class="tab" data-tab="lineups">My Lineups</button><button class="tab" data-tab="lateSwap">Late Swap</button></nav>
 <div id="localSaveStatus" class="status" role="status" hidden></div><div id="nbaInjuryBanner" class="status" role="status" hidden></div><section id="dashboard" class="screen active">
-<div class="card"><h2>🏀 NBA Slate Control</h2><p>Load the Oct 29, 2026 DraftKings NBA main slate (3 games), or import a salary export for another slate.</p><button id="loadMainSlate">Load Oct 29 main slate</button><div id="slateStatus" class="status" role="status"></div><p class="note">Initial projections use DraftKings historical fantasy-point averages; ceilings start at 1.4× those averages. Ownership and minutes start at 0. Import current projections or edit these values before using them for research. Injury status is not supplied in the salary export.</p>
+<div class="card"><h2>🏀 NBA Slate Control</h2><p><span id="dailySlateDescription">Checking today’s DraftKings NBA main slate…</span></p><button id="loadMainSlate">Load today’s main slate</button><div id="slateStatus" class="status" role="status"></div><p class="note">Initial projections use DraftKings historical fantasy-point averages; ceilings start at 1.4× those averages. Ownership and minutes start at 0. Import current projections or edit these values before using them for research. Injury status is not supplied in the salary export.</p>
 <div class="row"><div class="metric"><b id="count">0</b><small>Available players</small></div><div class="metric"><b id="projected">0</b><small>Projected players</small></div><div class="metric"><b id="saved">0</b><small>Built lineups</small></div></div></div>
 <div class="card"><h3>1 · Import DraftKings salaries</h3><input id="salaryFile" class="file" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><p class="note">Accepts standard DK salary CSV columns such as Name, Position, Salary, TeamAbbrev, AvgPointsPerGame, ID and Game Info. Game Info is required to verify the two-game rule. Imports replace the current player pool.</p><button id="importSalary">Import Salaries</button></div>
 <div class="card"><h3>2 · Import projections (optional)</h3><input id="projFile" class="file" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><p class="note">Columns: Name (or ID), Projection, Ceiling, Ownership, Minutes. Matched players are updated. Ownership is percentage (e.g. 18).</p><button id="importProj">Import Projections</button></div>
@@ -145,19 +145,44 @@ $('teamLimitRows').addEventListener('input',e=>{const t=e.target;if(!t.dataset.b
 $('useSimResults').onclick=()=>{if(!validSimBatch()){renderOptimizer();return}const b=state.simulationBatch;for(const r of b.results){const p=state.players.find(p=>String(p.id)===String(r.id)&&p.name===r.name);if(p){p.projection=+r.mean.toFixed(2);p.ceiling=+r.p95.toFixed(2)}}b.applied=true;b.signature=poolSignature();state.lineups=[];save();renderAll()};
 
 
-function applyMainSlate(slate){
-if(slate.date!=='2026-10-29'||!Array.isArray(slate.players)||!slate.players.length)throw Error('Invalid main-slate data.');
+function slateDay(now=new Date()){
+const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const get=t=>parts.find(p=>p.type===t).value;return get('year')+'-'+get('month')+'-'+get('day');
+}
+function slateDayLabel(day){return new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(new Date(day+'T12:00:00Z'))}
+let displayedSlateDay='',dailySlateLoading=false;
+function refreshDailySlate(){
+const day=slateDay(),changed=displayedSlateDay!==day;displayedSlateDay=day;
+$('dailySlateDescription').textContent='DraftKings NBA main slate for '+slateDayLabel(day)+' (Central time). Load today’s published salary pool, or import today’s DraftKings salary/entries file.';
+$('loadMainSlate').textContent='Load '+slateDayLabel(day)+' main slate';
+if(changed&&!dailySlateLoading){
+const dates=[...new Set(state.players.map(p=>{const m=String(p.gameInfo||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0'):''}).filter(Boolean))];
+$('slateStatus').textContent=state.players.length?(dates.length===1&&dates[0]===day?'Your loaded player pool is dated '+slateDayLabel(day)+'.':'Your saved player pool is from another day or has an unverified date. Load today’s slate or import today’s DraftKings file before building. Saved lineups have been kept.'):'No player pool loaded for today.';
+}return day;
+}
+function applyMainSlate(slate,expectedDay=slateDay()){
+if(expectedDay!==slateDay()||slate.date!==expectedDay||slate.status==='unavailable'||!Array.isArray(slate.players)||!slate.players.length)throw Error('No verified salary pool is published for today.');
 const players=slate.players.map(r=>({id:String(r.id),name:String(r.name),position:String(r.position),team:String(r.team),salary:num(r.salary),gameInfo:String(r.gameInfo),average:num(r.average),projection:num(r.average),ceiling:+(num(r.average)*1.4).toFixed(2),ownership:0,minutes:0,lock:false,fade:false}));
 if(new Set(players.map(p=>p.id)).size!==players.length||players.some(p=>!/^\d+$/.test(p.id)||!p.name||!pos(p.position).length||p.salary<=0||!gameKey(p)))throw Error('Incomplete player IDs, salaries, positions or games.');
-state.players=players;state.lineups=[];state.demo=false;state.simulationBatch=null;state.teamLimits={};state.slateLabel='DraftKings NBA Main Slate · Oct 29, 2026 · '+players.length+' players · '+lineupGames(players)+' games';save();renderAll();return players.length;
+if(players.some(p=>{const m=p.gameInfo.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return !m||m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0')!==expectedDay}))throw Error('Player game dates do not match today’s slate.');
+if(lineupGames(players)<2)throw Error('A main slate must contain at least two games.');
+state.players=players;state.lineups=[];state.demo=false;state.simulationBatch=null;state.teamLimits={};state.slateLabel='DraftKings NBA Main Slate · '+slateDayLabel(expectedDay)+' · '+players.length+' players · '+lineupGames(players)+' games';save();renderAll();return players.length;
 }
 async function loadMainSlate(){
-$('loadMainSlate').disabled=true;$('slateStatus').textContent='Loading Oct 29 DraftKings main slate…';
-try{const response=await fetch('./nba-main-2026-10-29.json',{cache:'no-cache'});if(!response.ok)throw Error('Salary data could not be downloaded.');applyMainSlate(await response.json())}
-catch(e){$('slateStatus').textContent='Main slate could not load: '+e.message+' Try Load Oct 29 main slate again.'}
-finally{$('loadMainSlate').disabled=false}
+if(dailySlateLoading)return;const day=refreshDailySlate();dailySlateLoading=true;
+$('loadMainSlate').disabled=true;$('slateStatus').textContent='Checking '+slateDayLabel(day)+' DraftKings main slate…';
+try{
+let slate=null;
+for(const path of ['./nba-main-'+day+'.json','./nba-main-slate.json']){
+try{const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)continue;const candidate=await response.json();if(candidate.date===day&&Array.isArray(candidate.players)&&candidate.players.length){slate=candidate;break}}catch(e){}
+}
+if(!slate)throw Error('Today’s DraftKings salary data is not available on the site. Import today’s DraftKings salary/entries CSV or XLSX below.');
+const count=applyMainSlate(slate,day);$('slateStatus').textContent='Loaded '+count+' players for '+slateDayLabel(day)+'.';
+}catch(e){$('slateStatus').textContent=e.message+' Your existing player pool and lineups were kept.'}
+finally{dailySlateLoading=false;$('loadMainSlate').disabled=false;refreshDailySlate()}
 }
 $('loadMainSlate').onclick=loadMainSlate;
+setInterval(refreshDailySlate,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshDailySlate()});
 
 function renderAll(){if(typeof enforceNBAInjuries==='function'&&enforceNBAInjuries())save();renderSummary();renderPlayers();renderLineups();renderOptimizer();if(typeof renderNBAInjuries==='function')renderNBAInjuries();if(typeof renderBaseModel==='function')renderBaseModel();if(typeof renderExclusiveProjectionImport==='function')renderExclusiveProjectionImport()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.screen').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');if(['sim','players','optimizer'].includes(b.dataset.tab)&&typeof prepareSimulationOwnership==='function')prepareSimulationOwnership();if(b.dataset.tab==='players')renderPlayers();if(b.dataset.tab==='rotations'&&typeof renderRotations==='function')renderRotations();if(b.dataset.tab==='baseModel'&&typeof renderBaseModel==='function')renderBaseModel();if(b.dataset.tab==='lineups')renderLineups();if(b.dataset.tab==='lineupSim'&&typeof renderLineupSimulation==='function')renderLineupSimulation();if(b.dataset.tab==='optimizer')renderOptimizer();if(b.dataset.tab==='lateSwap'&&typeof renderLateSwap==='function')renderLateSwap();if(b.dataset.tab==='nbaInjuries'&&typeof renderNBAInjuries==='function')renderNBAInjuries();if(b.dataset.tab==='blend'&&typeof renderProjectionBlend==='function'){renderProjectionBlend();if(typeof renderExclusiveProjectionImport==='function')renderExclusiveProjectionImport()}});
@@ -296,7 +321,7 @@ finally{activeGeneration=null;if(typeof renderContestEntries==='function')render
 
 $('export').onclick=()=>{if(!state.lineups.length)return alert('Build lineups first.');if(state.lineups.some(l=>lineupGames(l.players)<2))return alert('Cannot export: each lineup must have verified players from at least two NBA games. Reimport salaries with Game Info and rebuild lineups.');const rows=[SLOTS.join(','),...state.lineups.map(l=>l.players.map(p=>`"${String(p.id||p.name).replace(/"/g,'""')}"`).join(','))];const blob=new Blob([rows.join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dfs-edge-lab-dk-lineups.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 if(state.demo){for(const p of [...state.players,...state.lineups.flatMap(l=>l.players||[])])if((!p.gameInfo||gameStartOrder(p)===null)&&/^DEMO\d+$/.test(String(p.id)))p.gameInfo=demoGame(p.team)}
-renderAll();if(!state.players.length||state.demo)loadMainSlate();
+renderAll();refreshDailySlate();if(!state.players.length||state.demo)loadMainSlate();
 </script><script src="./spreadsheet-import.js?v=1"></script><script src="./late-swap.js?v=7"></script><script src="./projection-blend.js?v=12"></script><script src="./nba-injuries.js?v=5"></script><script src="./ownership-roster.js?v=1"></script><script src="./ownership-model.js?v=7"></script><script src="./rotation-model.js?v=8"></script><script src="./base-model.js?v=12"></script><script src="./exclusive-projections.js?v=4"></script><script src="./contest-entries.js?v=3"></script><script src="./lineup-exposure-fill.js?v=4"></script><script src="./lineup-reduce.js?v=2"></script><script src="./minute-tools.js?v=2"></script><script src="./lineup-simulations.js?v=6"></script></body></html>
 
 
