@@ -10,7 +10,7 @@ function readContestTemplate(text,fileName){
  return {rows,headerIndex,entryCol,contestCol,slotCols,entries,salaryRows,fileName,slateSignature:lateSlateSignature(),contest:'all'};
 }
 function contestEntryPlan(now=Date.now()){
- const b=state.contestEntries;if(!b)throw Error('Import your DraftKings entries CSV first.');if(activeGeneration)throw Error('Wait for lineup generation to finish.');if(b.slateSignature!==lateSlateSignature())throw Error('The salary pool changed. Reimport your entries CSV for the current slate.');
+ const b=state.contestEntries;if(!b)throw Error('Import your DraftKings entries CSV first.');if(activeGeneration)throw Error('Wait for lineup generation to finish.');if(b.slateSignature!==lateSlateSignature())throw Error('The salary pool changed. Import the matching DraftKings entries file on Dashboard or here.');
  const entries=b.entries.filter(e=>b.contest==='all'||e.contest===b.contest),lineups=state.lineups||[];if(!entries.length)throw Error('Select a contest with entries.');if(lineups.length<entries.length)throw Error('Generate at least '+entries.length+' lineups to fill these '+entries.length+' entries. You currently have '+lineups.length+'.');
  const pool=latePlayerMap(),rows=b.rows.map(r=>r.slice());
  const ranked=lineups.map((lineup,index)=>({lineup,index,points:(lineup.players||[]).reduce((sum,p)=>sum+num((pool.get(String(p.id))||p).projection),0)})).sort((a,b)=>b.points-a.points||a.index-b.index).map(r=>r.lineup);
@@ -33,4 +33,18 @@ $('contestEntryImport').onclick=async()=>{const f=$('contestEntryFile').files[0]
 $('contestEntryContest').onchange=()=>{state.contestEntries.contest=$('contestEntryContest').value;save();renderContestEntries()};
 $('contestEntryRemove').onclick=()=>{delete state.contestEntries;save();renderContestEntries()};
 $('contestEntryExport').onclick=()=>{try{const text=contestEntryText(),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=state.contestEntries.fileName.replace(/\.csv$/i,'')+'-updated.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);$('contestEntryStatus').textContent='Updated entries CSV downloaded. Upload it through DraftKings Edit Entries to review and submit.'}catch(e){$('contestEntryStatus').textContent=e.message}};
+
+async function reuseDashboardContestFile(file){
+ try{
+ const text=await readImportText(file,'entries'),template=readContestTemplate(text,file.name);
+ state.contestEntries=template;save();renderContestEntries();
+ return true;
+ }catch(e){return false}
+}
+const dashboardSalaryImport=$('importSalary').onclick;
+$('importSalary').onclick=async function(event){
+ const file=$('salaryFile').files[0],previous=state.players;
+ await dashboardSalaryImport.call(this,event);
+ if(file&&state.players!==previous)await reuseDashboardContestFile(file);
+};
 renderContestEntries();
