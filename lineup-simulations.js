@@ -72,13 +72,21 @@ function renderLineupSimulation(){
  if(batch?.field){$('lineupFieldOwnership').innerHTML=batch.field.ownership.slice().sort((a,b)=>b.target-a.target).slice(0,30).map(p=>'<tr><td>'+escapeHTML(p.name)+'</td><td>'+p.target.toFixed(1)+'%</td><td>'+p.actual.toFixed(1)+'%</td></tr>').join('')}
 
 }
+function moveSimmedLineupsToMyLineups(){
+ const ranked=rankedLineupSimResults(),before=state.lineups;
+ if(ranked.length!==before.length||new Set(ranked.map(r=>r.index)).size!==before.length||ranked.some(r=>!Number.isInteger(r.index)||!before[r.index]))throw Error('Simulation ranks do not match the saved batch.');
+ state.lineups=ranked.map(r=>before[r.index]);lineupPage=1;
+ $('lineupSort').value='original';$('lineupPlayerFilter').value='';
+ save();renderLineups();
+ $('lineupManageStatus').textContent='All '+state.lineups.length+' lineups ordered by Lineup Sims: '+$('lineupSimSort').selectedOptions[0].textContent+'. No lineups removed; exposures unchanged.';
+}
 $('lineupSimRun').onclick=async()=>{
- if(lineupSimRunning||activeGeneration)return;let run;
+ if(lineupSimRunning||activeGeneration)return;let run,completed=false;
  try{saveLineupSimSettings();if(typeof prepareSimulationOwnership==='function')prepareSimulationOwnership();const input=prepareLineupSimulation(),runs=Number($('lineupSimRuns').value),threshold=300,config=lineupFieldConfig(),signature=lineupSimulationSignature();run={cancelled:false,signature};lineupSimRunning=run;renderLineupSimulation();$('lineupSimStatus').textContent='Simulating '+input.lineups.length+' saved lineups…';
  await generateLineupField(input,config,{cancelled:()=>run.cancelled,progress:(done,stage)=>{if(lineupSimulationSignature()!==signature)throw Error('Inputs changed. Previous results kept.');$('lineupSimStatus').textContent=stage==='calibrate'?'Building ownership-weighted legal field lineups…':'Generated '+done+' / '+(config.size-1)+' generic opponents…'}});
  const result=await simulateLineupBatch(input,{runs,threshold},{cancelled:()=>run.cancelled,progress:(done,stage)=>{if(lineupSimulationSignature()!==signature)throw Error('Inputs changed during the run. Previous results kept; run again.');$('lineupSimStatus').textContent=stage==='summarize'?'Calculating lineup percentiles…':done.toLocaleString()+' / '+runs.toLocaleString()+' trials · '+input.lineups.length+' lineups'}});
- if(lineupSimulationSignature()!==signature)throw Error('Inputs changed during the run. Previous results kept; run again.');state.lineupSimulation={...result,signature};lineupSimPage=1;save();const zero=input.players.filter(p=>p.projection===0).length;$('lineupSimStatus').textContent='Finished '+runs.toLocaleString()+' shared trials across '+input.lineups.length+' lineups. '+zero+' rostered players with zero projection stayed at zero. No saved lineups were changed.';
- }catch(e){$('lineupSimStatus').textContent=e.message||'Simulation failed. Previous results kept.'}finally{if(lineupSimRunning===run)lineupSimRunning=null;renderLineupSimulation()}
+ if(lineupSimulationSignature()!==signature)throw Error('Inputs changed during the run. Previous results kept; run again.');state.lineupSimulation={...result,signature};lineupSimPage=1;moveSimmedLineupsToMyLineups();completed=true;const zero=input.players.filter(p=>p.projection===0).length;$('lineupSimStatus').textContent='Finished '+runs.toLocaleString()+' shared trials across '+input.lineups.length+' lineups. '+zero+' rostered players with zero projection stayed at zero. All lineups were ranked into My Lineups.';
+ }catch(e){$('lineupSimStatus').textContent=e.message||'Simulation failed. Previous results kept.'}finally{if(lineupSimRunning===run)lineupSimRunning=null;renderLineupSimulation();if(completed)document.querySelector('[data-tab="lineups"]').click()}
 };
 $('lineupSimStop').onclick=()=>{if(lineupSimRunning)lineupSimRunning.cancelled=true};$('lineupSimSort').onchange=()=>{lineupSimPage=1;renderLineupSimulation()};$('lineupSimPrev').onclick=()=>{lineupSimPage--;renderLineupSimulation()};$('lineupSimNext').onclick=()=>{lineupSimPage++;renderLineupSimulation()};
 $('lineupSimExport').onclick=()=>{if(!validLineupSimulation())return;const b=state.lineupSimulation;downloadBaseCSV(baseCSV([['Rank','Original Lineup','Expected ROI %','Top 1% Share %','Maximum Observed ROI %','Exact Copies In Generic Field','Mean Points','P95','Cash %','Field First Place Share %','Own Batch First Place Share %','Average Field Finish','Runs','Generic Contest Size','Entry Fee','Payout Model',...SLOTS],...rankedLineupSimResults().map((r,i)=>[i+1,r.index+1,r.expectedROI,r.topOne,r.maxROI,r.duplicates,r.mean,r.p95,r.cash,r.first,r.batchFirst,r.averageRank,b.runs,b.field.size,b.field.fee,b.field.label,...r.playerIds])]),'lineup-field-simulation-rankings.csv')};
