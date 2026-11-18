@@ -60,7 +60,8 @@ function checkLateLineup(entry,players,options,now=Date.now(),settings=true){
  const salary=players.reduce((n,p)=>n+num(p.salary),0);if(salary>50000)return 'DraftKings salary cap exceeded.';
  for(let j=0;j<8;j++){const p=players[j];if(!eligible(p,SLOTS[j]))return 'Ineligible player in '+SLOTS[j]+'.';const start=gameStartInstant(p);if(start===null)return 'Missing game start time.';if(entry.locked[j]){if(String(p.id)!==entry.ids[j])return 'A locked player moved or changed in '+SLOTS[j]+'.'}else if(start<=now)return 'A replacement game has already started.'}
  if(lineupGames(players)<2)return 'At least two NBA games are required.';
- if(settings){if(players.some((p,j)=>!entry.locked[j]&&(state.lateExcludedTeams||[]).includes(teamCode(p))))return 'An unlocked player is on an excluded team.';if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&p.fade))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
+ if(players.some((p,j)=>!entry.locked[j]&&(state.lateExcludedTeams||[]).includes(teamCode(p))))return 'An unlocked player is on an excluded team.';
+ if(settings){if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&p.fade))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
  return null;
 }
 function arrangeWithFixedSlots(players,entry){
@@ -89,7 +90,7 @@ function solveLateEntry(entry,options,now=Date.now()){
    if(!valid||checkLateLineup(entry,picked,options,now,true))continue;const value=lateMetric(picked,options.mode);if(value>bestScore+1e-8){best=picked;bestScore=value}
   }
  }
- if(!best)return checkLateLineup(entry,original,options,now,false)?{error:'No legal swap found and the original lineup is invalid.'}:{players:original,status:'Original retained — no lineup found that meets the current settings.'};
+ if(!best)return checkLateLineup(entry,original,options,now,false)?{error:'No legal swap found that honors locked slots and team exclusions. Try more search attempts or relax constraints.'}:{players:original,status:'Original retained — no lineup found that meets the current settings.'};
  best=arrangeWithFixedSlots(best,entry)||best;return {players:best,status:best.some((p,j)=>String(p.id)!==entry.ids[j])?'Optimized unlocked slots.':'Original retained — no better lineup found.'};
 }
 function lateExportRows(now=Date.now()){
@@ -165,7 +166,7 @@ function renderLateSelectionControls(){
  }).join('');
 }
 $('latePlayerSearch').oninput=renderLateSelectionControls;
-$('lateTeamExclusions').onchange=e=>{if(lateBusy||!e.target.dataset.lateExclude)return;const team=e.target.dataset.lateExclude,teams=new Set(state.lateExcludedTeams||[]);if(e.target.checked)teams.add(team);else teams.delete(team);state.lateExcludedTeams=[...teams];if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap()};
+$('lateTeamExclusions').onchange=e=>{if(lateBusy||!e.target.dataset.lateExclude)return;const team=e.target.dataset.lateExclude,teams=new Set(state.lateExcludedTeams||[]);if(e.target.checked)teams.add(team);else teams.delete(team);state.lateExcludedTeams=[...teams];if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();$('lateStatus').textContent='Team exclusions updated. Started players stay locked; optimizing open slots…';if(state.lateSwap&&state.lateSwap.entries.some(e=>!e.issues.length))setTimeout(()=>{if(!lateBusy)$('lateRun').onclick()},0)};
 $('latePlayerLocks').onchange=e=>{if(lateBusy||!e.target.dataset.latePlayer)return;const p=state.players.find(p=>String(p.id)===e.target.dataset.latePlayer);if(!p)return;p.lock=e.target.checked;if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap()};
 
 renderLateSwap();setInterval(()=>{if($('lateSwap').classList.contains('active')&&!lateBusy)renderLateSwap()},15000);
