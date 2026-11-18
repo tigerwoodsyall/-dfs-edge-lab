@@ -117,7 +117,31 @@ function importLateProjections(text,fileName){
  }
  if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();return {...result,fileOnly:inFileOnly};
 }
-$('lateProjImport').onclick=async()=>{const f=$('lateProjFile').files[0];if(!f){$('lateStatus').textContent='Choose an updated projection CSV first.';return}try{const result=importLateProjections(await readImportText(f,'projections'),f.name),batch=state.lateSwap;let next=!batch?'Import your filled DraftKings entries CSV next.':!batch.entries.some(e=>!e.issues.length)?'Correct the flagged entries before optimizing.':'Select Optimize Unlocked Slots to use the updated projections.';$('lateStatus').textContent='Updated '+result.records.size+' matched DK players. '+(result.fileOnly?'File-only inputs replaced; missing players remain excluded. ':'Unmatched players and missing ownership kept their previous values. ')+next}catch(e){$('lateStatus').textContent='Projection import failed: '+e.message}renderLateSwap()};
+function mergeLateProjectionFiles(files){
+ const results=files.map(f=>{const source=makeFileProjectionSource(f.text,f.name),result=computeFileProjections(source);if(result.errors.length)throw Error(f.name+': '+result.errors.slice(0,4).join(' '));return result});
+ const fields=['projection','ceiling','minutes','ownership','usage','standardDeviation'],rows=[['ID','Name',...fields]];
+ for(const p of state.players){
+ const records=results.map(r=>r.records.get(String(p.id))),excluded=records.some(r=>!r||r.values.projection===0),values={};
+ for(const field of fields){const numbers=records.map(r=>r?.values[field]).filter(v=>typeof v==='number'&&Number.isFinite(v));values[field]=numbers.length?numbers.reduce((a,b)=>a+b,0)/numbers.length:''}
+ if(excluded){values.projection=0;values.ownership=0;values.minutes=0;values.ceiling=0}
+ // Missing SD remains estimated by the model; do not average incomplete deviation inputs.
+ if(records.some(r=>r?.values.standardDeviation===undefined))values.standardDeviation='';
+ else values.standardDeviation=Math.sqrt(records.reduce((n,r)=>n+r.values.standardDeviation**2,0)/records.length);
+ rows.push([p.id,p.name,...fields.map(f=>values[f])]);
+ }
+ return baseCSV(rows);
+}
+$('lateProjImport').onclick=async()=>{
+ const files=[...$('lateProjFile').files];if(!files.length){$('lateStatus').textContent='Choose one or more updated projection files first.';return}
+ const signature=lateSignature();$('lateProjImport').disabled=true;
+ try{
+ const inputs=await Promise.all(files.map(async f=>({name:f.name,text:await readImportText(f,'projections')})));
+ if(lateSignature()!==signature)throw Error('Player inputs changed while reading files. Try again.');
+ const text=inputs.length===1?inputs[0].text:mergeLateProjectionFiles(inputs),label=inputs.map(f=>f.name).join(' + '),result=importLateProjections(text,label);
+ $('lateStatus').textContent='Imported '+inputs.length+' projection file'+(inputs.length===1?'':'s; merged equally')+'. Updated '+result.records.size+' matched DK players. Locked entry slots preserved. Select Optimize Unlocked Slots to use these projections.';
+ }catch(e){$('lateStatus').textContent='Projection import failed: '+e.message}
+ finally{$('lateProjImport').disabled=false;renderLateSwap()}
+};
 $('lateRefresh').onclick=()=>{renderLateSwap();$('lateStatus').textContent='Lock status refreshed using current Eastern time. Run again if any replacement has locked.'};
 $('lateRun').onclick=async()=>{
  const batch=state.lateSwap;if(!batch||lateBusy)return;if(batch.slateSignature!==lateSlateSignature()){$('lateStatus').textContent='The player pool differs from the imported entries slate. Reimport current entries before late swapping.';renderLateSwap();return}let options;try{options=readLateOptions()}catch(e){$('lateStatus').textContent=e.message;return}const signature=lateSignature();batch.runSignature=null;lateBusy=true;renderLateSwap();
@@ -129,4 +153,3 @@ $('lateExport').onclick=()=>{try{const text=lateExportText(),url=URL.createObjec
 ['lateMode','lateMinSalary','lateCap','lateTrials'].forEach(id=>$(id).addEventListener('change',renderLateSwap));
 $('lateClear').onclick=()=>{if(lateBusy)return;state.lateSwap=null;save();$('lateStatus').textContent='Imported late-swap entries cleared from this browser.';renderLateSwap()};
 renderLateSwap();setInterval(()=>{if($('lateSwap').classList.contains('active')&&!lateBusy)renderLateSwap()},15000);
-
