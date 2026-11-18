@@ -161,7 +161,7 @@ $('lateClear').onclick=()=>{if(lateBusy)return;state.lateSwap=null;save();$('lat
 function renderLateSelectionControls(){
  if(!$('lateTeamExclusions'))return;
  const teams=[...new Set(state.players.map(teamCode))].sort(),excluded=new Set(state.lateExcludedTeams||[]);
- $('lateTeamLimitRows').innerHTML=teams.map(t=>{const r=teamRule(t);return '<tr><td>'+escapeHTML(t)+'</td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Minimum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="min" value="'+r.min+'" '+(lateBusy?'disabled':'')+'></td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Maximum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="max" value="'+r.max+'" '+(lateBusy?'disabled':'')+'></td></tr>'}).join('');$('lateApplyTeamLimits').disabled=lateBusy||!teams.length;
+ $('lateTeamLimitRows').innerHTML=teams.map(t=>{const r=teamRule(t);return '<tr><td>'+escapeHTML(t)+'</td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Minimum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="min" value="'+r.min+'" '+(lateBusy?'disabled':'')+'></td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Maximum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="max" value="'+r.max+'" '+(lateBusy?'disabled':'')+'></td></tr>'}).join('');$('lateApplyTeamLimits').disabled=lateBusy||!teams.length;$('lateSetAllTeamMax').disabled=lateBusy||!teams.length;
  $('lateTeamExclusions').innerHTML=teams.map(t=>'<label style="display:inline-flex;align-items:center;gap:6px;margin:6px 12px 6px 0"><input style="width:auto" type="checkbox" data-late-exclude="'+escapeHTML(t)+'" '+(excluded.has(t)?'checked ':'')+(lateBusy?'disabled':'')+'>Exclude '+escapeHTML(t)+'</label>').join('')||'Load player salaries first.';
  const q=$('latePlayerSearch').value.toLowerCase(),now=Date.now();
  $('latePlayerLocks').innerHTML=state.players.filter(p=>(p.name+' '+teamCode(p)).toLowerCase().includes(q)).sort((a,b)=>num(b.projection)-num(a.projection)).map(p=>{
@@ -170,6 +170,13 @@ function renderLateSelectionControls(){
  }).join('');
 }
 
+$('lateSetAllTeamMax').onclick=()=>{
+ if(lateBusy)return;const raw=$('lateGlobalTeamMax').value,value=Number(raw);
+ if(raw.trim()===''||!Number.isInteger(value)||value<0||value>8){$('lateTeamLimitStatus').textContent='Enter a whole-number maximum from 0 to 8.';return}
+ const inputs=[...$('lateTeamLimitRows').querySelectorAll('input[data-bound="max"]')];
+ if(!inputs.length)return;for(const input of inputs)input.value=String(value);
+ $('lateApplyTeamLimits').onclick();
+};
 $('lateApplyTeamLimits').onclick=()=>{
  if(lateBusy)return;
  try{
