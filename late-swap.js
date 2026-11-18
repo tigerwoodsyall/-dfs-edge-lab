@@ -61,7 +61,8 @@ function checkLateLineup(entry,players,options,now=Date.now(),settings=true){
  for(let j=0;j<8;j++){const p=players[j];if(!eligible(p,SLOTS[j]))return 'Ineligible player in '+SLOTS[j]+'.';const start=gameStartInstant(p);if(start===null)return 'Missing game start time.';if(entry.locked[j]){if(String(p.id)!==entry.ids[j])return 'A locked player moved or changed in '+SLOTS[j]+'.'}else if(start<=now)return 'A replacement game has already started.'}
  if(lineupGames(players)<2)return 'At least two NBA games are required.';
  if(players.some((p,j)=>!entry.locked[j]&&(state.lateExcludedTeams||[]).includes(teamCode(p))))return 'An unlocked player is on an excluded team.';
- if(settings){if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&p.fade))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
+ if(players.some((p,j)=>!entry.locked[j]&&(p.fade||state.players.some(current=>String(current.id)===String(p.id)&&current.fade))))return 'An unlocked player is faded.';
+ if(settings){if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&(p.fade||state.players.some(current=>String(current.id)===String(p.id)&&current.fade))))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
  return null;
 }
 function arrangeWithFixedSlots(players,entry){
@@ -162,11 +163,19 @@ function renderLateSelectionControls(){
  const q=$('latePlayerSearch').value.toLowerCase(),now=Date.now();
  $('latePlayerLocks').innerHTML=state.players.filter(p=>(p.name+' '+teamCode(p)).toLowerCase().includes(q)).sort((a,b)=>num(b.projection)-num(a.projection)).map(p=>{
  const started=gameStartInstant(p)!==null&&gameStartInstant(p)<=now;
- return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+num(p.projection).toFixed(2)+'</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td></tr>';
+ return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+num(p.projection).toFixed(2)+'</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td><td><input style="width:auto" type="checkbox" aria-label="Fade '+escapeHTML(p.name)+' in Late Swap" data-late-fade="'+escapeHTML(p.id)+'" '+(p.fade?'checked ':'')+(lateBusy||started?'disabled':'')+'></td></tr>';
  }).join('');
 }
 $('latePlayerSearch').oninput=renderLateSelectionControls;
 $('lateTeamExclusions').onchange=e=>{if(lateBusy||!e.target.dataset.lateExclude)return;const team=e.target.dataset.lateExclude,teams=new Set(state.lateExcludedTeams||[]);if(e.target.checked)teams.add(team);else teams.delete(team);state.lateExcludedTeams=[...teams];if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();$('lateStatus').textContent='Team exclusions updated. Started players stay locked; optimizing open slots…';if(state.lateSwap&&state.lateSwap.entries.some(e=>!e.issues.length))setTimeout(()=>{if(!lateBusy)$('lateRun').onclick()},0)};
-$('latePlayerLocks').onchange=e=>{if(lateBusy||!e.target.dataset.latePlayer)return;const p=state.players.find(p=>String(p.id)===e.target.dataset.latePlayer);if(!p)return;p.lock=e.target.checked;if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap()};
+$('latePlayerLocks').onchange=e=>{
+ const id=e.target.dataset.latePlayer||e.target.dataset.lateFade;
+ if(lateBusy||!id)return;const p=state.players.find(p=>String(p.id)===id);if(!p)return;
+ const fade=!!e.target.dataset.lateFade;p[fade?'fade':'lock']=e.target.checked;
+ if(e.target.checked)p[fade?'lock':'fade']=false;
+ if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();
+ $('lateStatus').textContent='Player '+(fade?'fade':'lock')+' updated. Reoptimizing open slots…';
+ if(state.lateSwap&&state.lateSwap.entries.some(e=>!e.issues.length))setTimeout(()=>{if(!lateBusy)$('lateRun').onclick()},0);
+};
 
 renderLateSwap();setInterval(()=>{if($('lateSwap').classList.contains('active')&&!lateBusy)renderLateSwap()},15000);
