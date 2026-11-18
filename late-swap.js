@@ -62,6 +62,7 @@ function checkLateLineup(entry,players,options,now=Date.now(),settings=true){
  if(lineupGames(players)<2)return 'At least two NBA games are required.';
  if(players.some((p,j)=>!entry.locked[j]&&(state.lateExcludedTeams||[]).includes(teamCode(p))))return 'An unlocked player is on an excluded team.';
  if(players.some((p,j)=>!entry.locked[j]&&(p.fade||state.players.some(current=>String(current.id)===String(p.id)&&current.fade))))return 'An unlocked player is faded.';
+ const teamCounts=new Map();players.forEach(p=>teamCounts.set(teamCode(p),(teamCounts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((teamCounts.get(team)||0)<r.min||(teamCounts.get(team)||0)>r.max)return 'Team limits cannot be met.';
  if(settings){if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&(p.fade||state.players.some(current=>String(current.id)===String(p.id)&&current.fade))))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
  return null;
 }
@@ -159,6 +160,7 @@ $('lateClear').onclick=()=>{if(lateBusy)return;state.lateSwap=null;save();$('lat
 function renderLateSelectionControls(){
  if(!$('lateTeamExclusions'))return;
  const teams=[...new Set(state.players.map(teamCode))].sort(),excluded=new Set(state.lateExcludedTeams||[]);
+ $('lateTeamLimitRows').innerHTML=teams.map(t=>{const r=teamRule(t);return '<tr><td>'+escapeHTML(t)+'</td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Minimum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="min" value="'+r.min+'" '+(lateBusy?'disabled':'')+'></td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Maximum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="max" value="'+r.max+'" '+(lateBusy?'disabled':'')+'></td></tr>'}).join('');$('lateApplyTeamLimits').disabled=lateBusy||!teams.length;
  $('lateTeamExclusions').innerHTML=teams.map(t=>'<label style="display:inline-flex;align-items:center;gap:6px;margin:6px 12px 6px 0"><input style="width:auto" type="checkbox" data-late-exclude="'+escapeHTML(t)+'" '+(excluded.has(t)?'checked ':'')+(lateBusy?'disabled':'')+'>Exclude '+escapeHTML(t)+'</label>').join('')||'Load player salaries first.';
  const q=$('latePlayerSearch').value.toLowerCase(),now=Date.now();
  $('latePlayerLocks').innerHTML=state.players.filter(p=>(p.name+' '+teamCode(p)).toLowerCase().includes(q)).sort((a,b)=>num(b.projection)-num(a.projection)).map(p=>{
@@ -166,6 +168,23 @@ function renderLateSelectionControls(){
  return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+num(p.projection).toFixed(2)+'</td><td>'+num(p.ownership).toFixed(2)+'%</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td><td><input style="width:auto" type="checkbox" aria-label="Fade '+escapeHTML(p.name)+' in Late Swap" data-late-fade="'+escapeHTML(p.id)+'" '+(p.fade?'checked ':'')+(lateBusy||started?'disabled':'')+'></td></tr>';
  }).join('');
 }
+
+$('lateApplyTeamLimits').onclick=()=>{
+ if(lateBusy)return;
+ try{
+ const next={...(state.teamLimits||{})};
+ for(const input of $('lateTeamLimitRows').querySelectorAll('input[data-late-team]')){
+ const team=input.dataset.lateTeam,value=Number(input.value);
+ if(input.value.trim()===''||!Number.isInteger(value)||value<0||value>8)throw Error('Use whole numbers from 0 to 8 for '+team+'.');
+ next[team]={...(next[team]||teamRule(team)),[input.dataset.bound]:value};
+ }
+ let total=0;for(const team of currentTeamNames()){const r=next[team]||teamRule(team);if(r.min>r.max)throw Error(team+': minimum cannot exceed maximum.');if((state.lateExcludedTeams||[]).includes(team)&&r.min>0)throw Error(team+' is excluded. Clear its exclusion or set minimum to 0.');total+=r.min}
+ if(total>8)throw Error('Team minimums total more than 8 players.');
+ state.teamLimits=next;if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();$('lateTeamLimitStatus').textContent='Team limits applied.';
+ if(state.lateSwap&&state.lateSwap.entries.some(e=>!e.issues.length))setTimeout(()=>{if(!lateBusy)$('lateRun').onclick()},0);
+ }catch(e){$('lateTeamLimitStatus').textContent=e.message}
+};
+
 $('latePlayerSearch').oninput=renderLateSelectionControls;
 $('lateTeamExclusions').onchange=e=>{if(lateBusy||!e.target.dataset.lateExclude)return;const team=e.target.dataset.lateExclude,teams=new Set(state.lateExcludedTeams||[]);if(e.target.checked)teams.add(team);else teams.delete(team);state.lateExcludedTeams=[...teams];if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();$('lateStatus').textContent='Team exclusions updated. Started players stay locked; optimizing open slots…';if(state.lateSwap&&state.lateSwap.entries.some(e=>!e.issues.length))setTimeout(()=>{if(!lateBusy)$('lateRun').onclick()},0)};
 $('latePlayerLocks').onchange=e=>{
