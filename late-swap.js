@@ -23,7 +23,7 @@ function readLateOptions(){
  const rules=new Map(currentTeamNames().map(t=>[t,teamRule(t)]));for(const [team,r] of rules)if(!Number.isInteger(r.min)||!Number.isInteger(r.max)||r.min<0||r.max>8||r.max<r.min)throw Error('Invalid team limits for '+team+'. Update them in Optimizer.');
  return {min,cap,mode,rules,trials:Math.max(1,Math.min(8000,Number($('lateTrials').value)||100))};
 }
-function lateSignature(){return JSON.stringify({players:state.players.map(p=>[String(p.id),p.name,p.position,p.team,p.salary,p.gameInfo,p.projection,p.ceiling,p.ownership,!!p.fade,!!p.lock]),teams:state.teamLimits||{},mode:$('lateMode').value,min:$('lateMinSalary').value,cap:$('lateCap').value,trials:$('lateTrials').value})}
+function lateSignature(){return JSON.stringify({players:state.players.map(p=>[String(p.id),p.name,p.position,p.team,p.salary,p.gameInfo,p.projection,p.ceiling,p.ownership,!!p.fade,!!p.lock]),excludedTeams:state.lateExcludedTeams||[],teams:state.teamLimits||{},mode:$('lateMode').value,min:$('lateMinSalary').value,cap:$('lateCap').value,trials:$('lateTrials').value})}
 function lateSlateSignature(players=state.players){return JSON.stringify(players.map(p=>[String(p.id),p.position,p.team,p.salary,p.gameInfo]).sort((a,b)=>a[0].localeCompare(b[0])))}
 function importLateEntries(text,fileName,now=Date.now()){
  const rows=csvMatrix(text),headerIndex=rows.findIndex(r=>{const h=r.map(lateHeader);return h.includes('entryid')&&SLOTS.every(s=>h.includes(s.toLowerCase()))});
@@ -60,7 +60,7 @@ function checkLateLineup(entry,players,options,now=Date.now(),settings=true){
  const salary=players.reduce((n,p)=>n+num(p.salary),0);if(salary>50000)return 'DraftKings salary cap exceeded.';
  for(let j=0;j<8;j++){const p=players[j];if(!eligible(p,SLOTS[j]))return 'Ineligible player in '+SLOTS[j]+'.';const start=gameStartInstant(p);if(start===null)return 'Missing game start time.';if(entry.locked[j]){if(String(p.id)!==entry.ids[j])return 'A locked player moved or changed in '+SLOTS[j]+'.'}else if(start<=now)return 'A replacement game has already started.'}
  if(lineupGames(players)<2)return 'At least two NBA games are required.';
- if(settings){if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&p.fade))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
+ if(settings){if(players.some((p,j)=>!entry.locked[j]&&(state.lateExcludedTeams||[]).includes(teamCode(p))))return 'An unlocked player is on an excluded team.';if(salary<options.min||salary>options.cap)return 'Salary settings cannot be met.';const counts=new Map();players.forEach(p=>counts.set(teamCode(p),(counts.get(teamCode(p))||0)+1));for(const [team,r] of options.rules)if((counts.get(team)||0)<r.min||(counts.get(team)||0)>r.max)return 'Team limits cannot be met.';if(players.some((p,j)=>!entry.locked[j]&&p.fade))return 'An unlocked player is faded.';if(state.players.some(p=>p.lock&&!players.some(x=>String(x.id)===String(p.id))))return 'Player locks cannot be met.'}
  return null;
 }
 function arrangeWithFixedSlots(players,entry){
@@ -73,7 +73,7 @@ function solveLateEntry(entry,options,now=Date.now()){
  const map=latePlayerMap(),original=entry.ids.map((id,j)=>({...entry.sourcePlayers[j],projection:num(map.get(id)?.projection),ceiling:num(map.get(id)?.ceiling),ownership:num(map.get(id)?.ownership),fade:!!map.get(id)?.fade}));
  const fixed=original.map((p,j)=>entry.locked[j]?p:null),fixedIds=new Set(fixed.filter(Boolean).map(p=>String(p.id))),open=SLOTS.map((slot,j)=>({slot,j})).filter(x=>!entry.locked[x.j]);
  if(!open.length)return {players:original,status:'All players locked — original slots preserved.'};
- const pool=state.players.filter(p=>!fixedIds.has(String(p.id))&&!p.fade&&p.projection>0&&p.salary>0&&gameStartInstant(p)!==null&&gameStartInstant(p)>now);
+ const pool=state.players.filter(p=>!fixedIds.has(String(p.id))&&!p.fade&&!(state.lateExcludedTeams||[]).includes(teamCode(p))&&p.projection>0&&p.salary>0&&gameStartInstant(p)!==null&&gameStartInstant(p)>now);
  const required=state.players.filter(p=>p.lock&&!fixedIds.has(String(p.id))).map(p=>String(p.id));
  let best=checkLateLineup(entry,original,options,now,true)?null:original,bestScore=best?lateMetric(best,options.mode):-Infinity;
  if(required.every(id=>pool.some(p=>String(p.id)===id))){
@@ -98,6 +98,7 @@ function lateExportRows(now=Date.now()){
 }
 function lateExportText(now=Date.now()){return lateExportRows(now).map(row=>row.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n')}
 function renderLateSwap(){
+ renderLateSelectionControls();
  const now=Date.now(),batch=state.lateSwap;let changed=false;$('lateClock').textContent='Lock check: '+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',dateStyle:'medium',timeStyle:'medium'}).format(new Date(now))+' Eastern time';
  $('lateImport').disabled=lateBusy;$('lateProjImport').disabled=lateBusy;$('lateRun').disabled=lateBusy||!batch||!batch.entries.some(e=>!e.issues.length);$('lateExport').disabled=true;
  if(!batch){$('lateEntries').innerHTML='<p>Upload a filled DraftKings entries CSV to review locked players and open roster slots.</p>';return}
@@ -152,4 +153,19 @@ $('lateRun').onclick=async()=>{
 $('lateExport').onclick=()=>{try{const text=lateExportText(),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='DKEntries-late-swap.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);$('lateStatus').textContent='Entries CSV exported. Entry IDs and locked roster cells are preserved.'}catch(e){$('lateStatus').textContent=e.message}renderLateSwap()};
 ['lateMode','lateMinSalary','lateCap','lateTrials'].forEach(id=>$(id).addEventListener('change',renderLateSwap));
 $('lateClear').onclick=()=>{if(lateBusy)return;state.lateSwap=null;save();$('lateStatus').textContent='Imported late-swap entries cleared from this browser.';renderLateSwap()};
+
+function renderLateSelectionControls(){
+ if(!$('lateTeamExclusions'))return;
+ const teams=[...new Set(state.players.map(teamCode))].sort(),excluded=new Set(state.lateExcludedTeams||[]);
+ $('lateTeamExclusions').innerHTML=teams.map(t=>'<label style="display:inline-flex;align-items:center;gap:6px;margin:6px 12px 6px 0"><input style="width:auto" type="checkbox" data-late-exclude="'+escapeHTML(t)+'" '+(excluded.has(t)?'checked ':'')+(lateBusy?'disabled':'')+'>Exclude '+escapeHTML(t)+'</label>').join('')||'Load player salaries first.';
+ const q=$('latePlayerSearch').value.toLowerCase(),now=Date.now();
+ $('latePlayerLocks').innerHTML=state.players.filter(p=>(p.name+' '+teamCode(p)).toLowerCase().includes(q)).sort((a,b)=>num(b.projection)-num(a.projection)).map(p=>{
+ const started=gameStartInstant(p)!==null&&gameStartInstant(p)<=now;
+ return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+num(p.projection).toFixed(2)+'</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td></tr>';
+ }).join('');
+}
+$('latePlayerSearch').oninput=renderLateSelectionControls;
+$('lateTeamExclusions').onchange=e=>{if(lateBusy||!e.target.dataset.lateExclude)return;const team=e.target.dataset.lateExclude,teams=new Set(state.lateExcludedTeams||[]);if(e.target.checked)teams.add(team);else teams.delete(team);state.lateExcludedTeams=[...teams];if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap()};
+$('latePlayerLocks').onchange=e=>{if(lateBusy||!e.target.dataset.latePlayer)return;const p=state.players.find(p=>String(p.id)===e.target.dataset.latePlayer);if(!p)return;p.lock=e.target.checked;if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap()};
+
 renderLateSwap();setInterval(()=>{if($('lateSwap').classList.contains('active')&&!lateBusy)renderLateSwap()},15000);
