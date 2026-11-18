@@ -119,6 +119,7 @@ function importLateProjections(text,fileName){
   const ids=[];for(const {player:p,values:v} of result.records.values()){p.projection=v.projection;if(v.ceiling!==undefined)p.ceiling=v.ceiling;else p.ceiling=Math.max(num(p.ceiling),p.projection);for(const k of ['minutes','usage'])if(v[k]!==undefined)p[k]=v[k];if(v.ownership!==undefined){p.ownership=v.ownership;p.ownershipSource='Imported: '+fileName}if(v.standardDeviation!==undefined){p.standardDeviation=v.standardDeviation;p.deviationProjection=p.projection;p.deviationCeiling=p.ceiling}else{delete p.standardDeviation;delete p.deviationProjection;delete p.deviationCeiling}p.projectionSource='Imported: '+fileName;ids.push(String(p.id))}
   if(typeof forgetManagedRotations==='function')forgetManagedRotations(ids);save();renderAll();
  }
+ for(const p of state.players)if(result.records.has(String(p.id)))p.lateImportedProjection=num(p.projection);
  if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();return {...result,fileOnly:inFileOnly};
 }
 function mergeLateProjectionFiles(files){
@@ -164,8 +165,8 @@ function renderLateSelectionControls(){
  $('lateTeamExclusions').innerHTML=teams.map(t=>'<label style="display:inline-flex;align-items:center;gap:6px;margin:6px 12px 6px 0"><input style="width:auto" type="checkbox" data-late-exclude="'+escapeHTML(t)+'" '+(excluded.has(t)?'checked ':'')+(lateBusy?'disabled':'')+'>Exclude '+escapeHTML(t)+'</label>').join('')||'Load player salaries first.';
  const q=$('latePlayerSearch').value.toLowerCase(),now=Date.now();
  $('latePlayerLocks').innerHTML=state.players.filter(p=>(p.name+' '+teamCode(p)).toLowerCase().includes(q)).sort((a,b)=>num(b.projection)-num(a.projection)).map(p=>{
- const started=gameStartInstant(p)!==null&&gameStartInstant(p)<=now;
- return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+num(p.projection).toFixed(2)+'</td><td>'+num(p.ownership).toFixed(2)+'%</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td><td><input style="width:auto" type="checkbox" aria-label="Fade '+escapeHTML(p.name)+' in Late Swap" data-late-fade="'+escapeHTML(p.id)+'" '+(p.fade?'checked ':'')+(lateBusy||started?'disabled':'')+'></td></tr>';
+ const started=gameStartInstant(p)!==null&&gameStartInstant(p)<=now,editable=!lateBusy&&!started&&!(typeof nbaOut==='function'&&nbaOut(p));
+ return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+'<div class="projection-control"><button type="button" data-late-boost="-1" data-late-id="'+escapeHTML(p.id)+'" '+(!editable?'disabled':'')+'>−5%</button><input class="tiny" type="number" min="0" step="0.01" aria-label="Late Swap projection for '+escapeHTML(p.name)+'" data-late-projection="'+escapeHTML(p.id)+'" value="'+num(p.projection).toFixed(2)+'" '+(!editable?'disabled':'')+'><button type="button" data-late-boost="1" data-late-id="'+escapeHTML(p.id)+'" '+(!editable?'disabled':'')+'>+5%</button></div><small title="'+escapeHTML(p.projectionSource||'Current applied projection')+'">'+(Number.isFinite(p.lateImportedProjection)?'Uploaded: '+p.lateImportedProjection.toFixed(2):'Current applied projection')+'</small></td><td>'+num(p.ownership).toFixed(2)+'%</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td><td><input style="width:auto" type="checkbox" aria-label="Fade '+escapeHTML(p.name)+' in Late Swap" data-late-fade="'+escapeHTML(p.id)+'" '+(p.fade?'checked ':'')+(lateBusy||started?'disabled':'')+'></td></tr>';
  }).join('');
 }
 
@@ -187,7 +188,18 @@ $('lateApplyTeamLimits').onclick=()=>{
 
 $('latePlayerSearch').oninput=renderLateSelectionControls;
 $('lateTeamExclusions').onchange=e=>{if(lateBusy||!e.target.dataset.lateExclude)return;const team=e.target.dataset.lateExclude,teams=new Set(state.lateExcludedTeams||[]);if(e.target.checked)teams.add(team);else teams.delete(team);state.lateExcludedTeams=[...teams];if(state.lateSwap)state.lateSwap.runSignature=null;save();renderLateSwap();$('lateStatus').textContent='Team exclusions updated. Started players stay locked; optimizing open slots…';if(state.lateSwap&&state.lateSwap.entries.some(e=>!e.issues.length))setTimeout(()=>{if(!lateBusy)$('lateRun').onclick()},0)};
+function editLateProjection(id,value){
+ if(lateBusy)return;const p=state.players.find(p=>String(p.id)===String(id));if(!p)return;
+ const start=gameStartInstant(p);if(start!==null&&start<=Date.now())throw Error('Started players cannot be adjusted here.');
+ if(typeof nbaOut==='function'&&nbaOut(p))throw Error('Officially Out players remain at zero.');
+ if(String(value).trim()===''||!Number.isFinite(Number(value))||Number(value)<0)throw Error('Enter a nonnegative projected point total.');
+ p.projection=+Number(value).toFixed(2);p.ceiling=Math.max(num(p.ceiling),p.projection);p.projectionSource='Manual Late Swap adjustment';
+ if(typeof forgetManagedRotations==='function')forgetManagedRotations([String(p.id)]);
+ if(state.lateSwap)state.lateSwap.runSignature=null;save();renderAll();renderLateSwap();$('lateStatus').textContent='Projection updated for '+p.name+'. Select Optimize Unlocked Slots to use your adjustments.';
+}
+$('latePlayerLocks').onclick=e=>{const b=e.target.closest('button[data-late-boost]');if(!b)return;const p=state.players.find(p=>String(p.id)===b.dataset.lateId);if(!p)return;try{editLateProjection(p.id,num(p.projection)*(1+Number(b.dataset.lateBoost)*.05))}catch(error){$('lateStatus').textContent=error.message}};
 $('latePlayerLocks').onchange=e=>{
+ if(e.target.dataset.lateProjection){try{editLateProjection(e.target.dataset.lateProjection,e.target.value)}catch(error){$('lateStatus').textContent=error.message;renderLateSelectionControls()}return}
  const id=e.target.dataset.latePlayer||e.target.dataset.lateFade;
  if(lateBusy||!id)return;const p=state.players.find(p=>String(p.id)===id);if(!p)return;
  const fade=!!e.target.dataset.lateFade;p[fade?'fade':'lock']=e.target.checked;
