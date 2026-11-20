@@ -4,7 +4,7 @@ const BLEND_ALIASES={name:['name','player','playername','fullname','nickname','n
 const blendHeader=s=>/^(?:dk|fd)\s*\$$/i.test(String(s||'').trim())?String(s).trim().slice(0,2).toLowerCase()+'salary':String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function projectionRowIsDraftKings(source,row){const h=source.headers.map(blendHeader),salary=h.indexOf('dksalary'),position=h.indexOf('dkpos');return (salary<0||num(row[salary])>0)&&(position<0||pos(row[position]).length>0)}
 function blendSlateKey(){return JSON.stringify(state.players.map(p=>[String(p.id),p.name,p.team,p.position,p.salary,p.gameInfo]).sort((a,b)=>a[0].localeCompare(b[0])))}
-function blendState(){if(!state.projectionBlend)state.projectionBlend={slateKey:blendSlateKey(),sources:[],minimum:'1',undo:null};const b=state.projectionBlend;if(b.includeCurrent===undefined)b.includeCurrent=true;if(b.currentWeight===undefined)b.currentWeight='1';for(const source of b.sources)if(source.columns.ownership===undefined)source.columns.ownership=defaultBlendColumns(source.headers).ownership;return b}
+function blendState(){if(!state.projectionBlend)state.projectionBlend={slateKey:blendSlateKey(),sources:[],minimum:'1',undo:null};const b=state.projectionBlend;if(!b.uploadDefaultInitialized){b.includeCurrent=false;b.uploadDefaultInitialized=true;}if(b.currentWeight===undefined)b.currentWeight='1';for(const source of b.sources)if(source.columns.ownership===undefined)source.columns.ownership=defaultBlendColumns(source.headers).ownership;return b}
 function captureCurrentBlend(){const b=blendState();b.currentSnapshot={slateKey:blendSlateKey(),capturedAt:Date.now(),values:state.players.filter(p=>!p.exclusiveExcluded&&p.projection!==null&&p.projection!==''&&Number.isFinite(Number(p.projection))&&Number(p.projection)>=0).map(p=>({id:String(p.id),value:Number(p.projection)}))};return b.currentSnapshot}
 
 function saveBlend(){if(typeof enforceNBAInjuries==='function')enforceNBAInjuries();if(typeof syncLineupOwnership==='function')syncLineupOwnership();try{localStorage.setItem(KEY,JSON.stringify(typeof encodeDFSState==='function'?encodeDFSState(state):state));return true}catch(e){$('blendStatus').textContent='Browser storage is full. These sources and changes are available for this session; export the blend before closing the page.';return false}}
@@ -42,7 +42,48 @@ function computeProjectionBlend(){const b=blendState();if(b.includeCurrent&&(!b.
  const rows=state.players.map(p=>{const contributions=active.filter(r=>r.records.has(String(p.id))).map(r=>({sourceId:r.source.id,label:r.source.label,weight:r.weight,isCurrent:!!r.source.isCurrent,value:r.records.get(String(p.id))})),weight=contributions.reduce((n,r)=>n+r.weight,0),zeroCount=contributions.filter(r=>!r.isCurrent&&r.value===0).length,importedSources=active.filter(r=>!r.source.isCurrent),missingImport=importedSources.some(r=>!r.records.has(String(p.id))),importExcluded=importedSources.length>0&&(zeroCount>0||missingImport),likelyOut=zeroCount>=2,officialOut=typeof nbaOut==='function'&&nbaOut(p),uploaded=contributions.filter(r=>!r.isCurrent),uploadedWeight=uploaded.reduce((n,r)=>n+r.weight,0),uploadedValue=uploadedWeight?uploaded.reduce((n,r)=>n+r.value*r.weight,0)/uploadedWeight:null,currentValue=contributions.find(r=>r.isCurrent)?.value,uploadOverride=!officialOut&&!importExcluded&&uploadedValue!==null&&currentValue!==undefined&&Math.abs(currentValue-uploadedValue)>10+1e-9,value=officialOut||importExcluded?0:uploadOverride?uploadedValue:weight?contributions.reduce((n,r)=>n+r.value*r.weight,0)/weight:null;const ownershipContributions=active.filter(r=>!r.source.isCurrent&&r.outsideOwnership?.records.has(String(p.id))).map(r=>({label:r.source.label,weight:r.weight,value:r.outsideOwnership.records.get(String(p.id))})),ownershipWeight=ownershipContributions.reduce((n,r)=>n+r.weight,0),ownershipValue=ownershipWeight?(officialOut||importExcluded?0:ownershipContributions.reduce((n,r)=>n+r.value*r.weight,0)/ownershipWeight):officialOut||importExcluded?0:null;return {player:p,ownershipContributions,ownershipValue,contributions,zeroCount,likelyOut,importExcluded,missingImport,officialOut,uploadOverride,uploadedValue,currentValue,count:contributions.length,value,low:contributions.length?Math.min(...contributions.map(r=>r.value)):null,high:contributions.length?Math.max(...contributions.map(r=>r.value)):null,ready:!errors.length&&(officialOut||importExcluded||contributions.length>=minimum)&&value!==null}});return {minimum,errors,results,active,rows,ready:rows.filter(r=>r.ready)};
 }
 function canUndoProjectionBlend(){const u=blendState().undo;if(!u||u.slateKey!==blendSlateKey())return false;const map=new Map(state.players.map(p=>[String(p.id),p]));return u.values.length>0&&u.values.every(r=>{const p=map.get(r.id);return p&&Math.abs(num(p.projection)-r.after)<1e-9&&(r.afterOwnership===undefined||Math.abs(num(p.ownership)-r.afterOwnership)<1e-9&&(p.ownershipSource||'')===r.afterOwnershipSource)&&!(typeof nbaOut==='function'&&nbaOut(p)&&(r.before>0||num(r.beforeOwnership)>0))})}
-function applyProjectionBlend(){const result=computeProjectionBlend();if(result.errors.length)throw Error(result.errors.join(' '));const rows=result.rows.filter(r=>r.ready||r.ownershipValue!==null);if(!rows.length)throw Error('No projections or outside ownership eligible to apply. Review matching and minimum sources.');const before=new Map(state.players.map(p=>[String(p.id),{projection:num(p.projection),ownership:num(p.ownership),source:p.ownershipSource||''}]));if(typeof exitExclusiveProjectionMode==='function')exitExclusiveProjectionMode(true);const changed=[];let ownershipCount=0;for(const row of rows){const p=row.player,old=before.get(String(p.id));if(row.ready)p.projection=+row.value.toFixed(2);if(row.ownershipValue!==null){p.ownership=+row.ownershipValue.toFixed(2);p.ownershipSource='Imported: '+(row.ownershipContributions.map(r=>r.label).join(' + ')||'zero/missing imported projection');ownershipCount++}if(old.projection!==num(p.projection)||old.ownership!==num(p.ownership)||old.source!==(p.ownershipSource||''))changed.push({id:String(p.id),before:old.projection,after:num(p.projection),beforeOwnership:old.ownership,afterOwnership:num(p.ownership),beforeOwnershipSource:old.source,afterOwnershipSource:p.ownershipSource||''})}const b=blendState();b.undo={slateKey:blendSlateKey(),values:changed};b.appliedAt=Date.now();b.minimum=$('blendMinimum').value;const saved=saveBlend();renderAll();renderProjectionBlend();if(saved)$('blendStatus').textContent='Applied blended projections to '+result.ready.length+' players and outside ownership to '+ownershipCount+' players. Missing uploaded ownership kept its current value. Rerun simulations and regenerate lineups to use the updated inputs. Existing rosters are kept.';return result;
+function applyUploadedBlend(){
+ const blend=blendState();
+ const enabled=blend.sources.filter(source=>source.enabled);
+ if(enabled.some(source=>String(source.weight).trim()===''||!Number.isFinite(Number(source.weight))||Number(source.weight)<0))throw Error('Enter valid source weights.');
+ const sources=enabled.filter(source=>Number(source.weight)>0);
+ const minimum=Number($('blendMinimum').value);
+ if(!Number.isInteger(minimum)||minimum<1||minimum>sources.length)throw Error('Set minimum sources between 1 and the number of enabled uploads.');
+ if(!sources.length)throw Error('Select at least one uploaded projection source.');
+ const fields=['projection','ceiling','minutes','ownership','usage','standardDeviation'];
+ const inputs=sources.map(source=>{
+  const columns={...Object.fromEntries(Object.entries(FILE_ALIASES).map(([key,aliases])=>{
+   const headers=source.headers.map(blendHeader);
+   return [key,aliases.map(alias=>headers.indexOf(alias)).find(i=>i>=0)??-1];
+  })),...source.columns};
+  const data={...source,slateKey:blend.slateKey,columns};
+  const result=computeFileProjections(data);
+  if(result.errors.length)throw Error(source.fileName+' — '+result.errors[0]);
+  return {data,records:result.records,weight:Number(source.weight)};
+ });
+ const label=sources.map(s=>s.fileName).join(' + ');
+ let source=inputs[0].data;
+ if(inputs.length>1){
+  const rows=[['ID',...fields]];
+  for(const player of state.players){
+   const id=String(player.id);
+   const contributions=inputs.map(input=>({values:input.records.get(id)?.values,weight:input.weight}));
+   if(contributions.some(row=>!row.values||row.values.projection<=0)){rows.push([id,0,0,0,0,0,0]);continue}
+   rows.push([id,...fields.map(field=>{
+    const withValue=contributions.filter(row=>Number.isFinite(row.values[field]));
+    if(!withValue.length)return '';
+    return withValue.reduce((sum,row)=>sum+row.weight*row.values[field],0)/withValue.reduce((sum,row)=>sum+row.weight,0);
+   })]);
+  }
+  source=makeFileProjectionSource(baseCSV(rows),label);
+ }
+ fileProjectionState().source=source;
+ const applied=applyFileProjections();
+ blend.appliedAt=Date.now();blend.undo=null;saveBlend();
+ $('blendStatus').textContent='Using uploaded projections only: '+label+'. '+state.players.filter(p=>p.projection>0).length+' players have positive projections after injury checks.';
+ return applied;
+}
+function applyProjectionBlend(){if(!blendState().includeCurrent)return applyUploadedBlend();const result=computeProjectionBlend();if(result.errors.length)throw Error(result.errors.join(' '));const rows=result.rows.filter(r=>r.ready||r.ownershipValue!==null);if(!rows.length)throw Error('No projections or outside ownership eligible to apply. Review matching and minimum sources.');const before=new Map(state.players.map(p=>[String(p.id),{projection:num(p.projection),ownership:num(p.ownership),source:p.ownershipSource||''}]));if(typeof exitExclusiveProjectionMode==='function')exitExclusiveProjectionMode(true);const changed=[];let ownershipCount=0;for(const row of rows){const p=row.player,old=before.get(String(p.id));if(row.ready)p.projection=+row.value.toFixed(2);if(row.ownershipValue!==null){p.ownership=+row.ownershipValue.toFixed(2);p.ownershipSource='Imported: '+(row.ownershipContributions.map(r=>r.label).join(' + ')||'zero/missing imported projection');ownershipCount++}if(old.projection!==num(p.projection)||old.ownership!==num(p.ownership)||old.source!==(p.ownershipSource||''))changed.push({id:String(p.id),before:old.projection,after:num(p.projection),beforeOwnership:old.ownership,afterOwnership:num(p.ownership),beforeOwnershipSource:old.source,afterOwnershipSource:p.ownershipSource||''})}const b=blendState();b.undo={slateKey:blendSlateKey(),values:changed};b.appliedAt=Date.now();b.minimum=$('blendMinimum').value;const saved=saveBlend();renderAll();renderProjectionBlend();if(saved)$('blendStatus').textContent='Applied blended projections to '+result.ready.length+' players and outside ownership to '+ownershipCount+' players. Missing uploaded ownership kept its current value. Rerun simulations and regenerate lineups to use the updated inputs. Existing rosters are kept.';return result;
 }
 function applyOutsideBlendOwnership(){
  const result=computeProjectionBlend();if(result.errors.length)throw Error(result.errors.join(' '));
@@ -60,7 +101,30 @@ function renderBlendPreview(){const result=computeProjectionBlend();for(const r 
  $('blendPageLabel').textContent='Page '+blendPage+' of '+pages+' · '+filtered.length+' players';$('blendPrev').disabled=blendPage<=1;$('blendNext').disabled=blendPage>=pages;
 }
 function renderProjectionBlend(){const b=blendState();$('blendMinimum').value=b.minimum||'1';$('blendIncludeCurrent').checked=b.includeCurrent;$('blendCurrentWeight').value=b.currentWeight;$('blendCurrentSnapshot').textContent=b.currentSnapshot?'Current projection snapshot: '+b.currentSnapshot.values.length+' players, captured '+new Date(b.currentSnapshot.capturedAt).toLocaleString()+'. Snapshot stays fixed after applying a blend; capture again to use newer values.':'Current projections will be captured when previewing or importing your first source.';$('blendSources').innerHTML=b.sources.map(source=>{const match=matchBlendSource(source),options=field=>'<option value="-1">'+(field==='projection'?'Choose column':'None')+'</option>'+source.headers.map((h,i)=>'<option value="'+i+'" '+(source.columns[field]===i?'selected':'')+'>'+escapeHTML(h||'(blank column)')+' ['+(i+1)+']</option>').join('');return '<div class="card blend-source"><div class="row"><div><label for="blendName-'+source.id+'">Site/source name</label><input id="blendName-'+source.id+'" data-blend-source="'+source.id+'" data-blend-field="label" value="'+escapeHTML(source.label)+'"></div><div><label for="blendWeight-'+source.id+'">Relative weight</label><input id="blendWeight-'+source.id+'" type="number" min="0" step="0.1" data-blend-source="'+source.id+'" data-blend-field="weight" value="'+escapeHTML(source.weight)+'"></div><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" aria-label="Include '+escapeHTML(source.label)+'" data-blend-source="'+source.id+'" data-blend-field="enabled" '+(source.enabled?'checked':'')+'>Include source</label><button class="secondary" data-blend-remove="'+source.id+'" aria-label="Remove source '+escapeHTML(source.label)+'">Remove source</button></div><p class="note">'+escapeHTML(source.fileName)+'</p><div id="blendStats-'+source.id+'" class="status"></div><details '+(match.error?'open':'')+'><summary style="cursor:pointer">Column mapping and matching details</summary><div class="row">'+Object.keys(BLEND_ALIASES).map(field=>'<div><label for="blendMap-'+source.id+'-'+field+'">'+({name:'Player name',id:'Player ID',team:'Team (optional)',projection:'Projected fantasy points',ownership:'DraftKings ownership % (optional)'})[field]+'</label><select id="blendMap-'+source.id+'-'+field+'" data-blend-source="'+source.id+'" data-blend-map="'+field+'">'+options(field)+'</select></div>').join('')+'</div><div class="scroll" style="max-height:200px"><table><thead><tr><th>CSV row</th><th>Player</th><th>Issue</th></tr></thead><tbody>'+match.stats.issues.slice(0,30).map(r=>'<tr><td>'+r.row+'</td><td>'+escapeHTML(r.player)+'</td><td>'+escapeHTML(r.reason)+'</td></tr>').join('')+'</tbody></table></div><p class="note">'+(match.stats.issues.length?'Showing '+Math.min(30,match.stats.issues.length)+' of '+match.stats.issues.length+' matching issues.':'No matching issues found.')+'</p></details></div>'}).join('')||'<p>No projection sources loaded yet.</p>';renderBlendPreview()}
-$('blendImport').onclick=async()=>{const files=[...$('blendFiles').files];if(!files.length){$('blendStatus').textContent='Choose one or more projection CSV/TSV files first.';return}$('blendImport').disabled=true;let added=0,replaced=0;const errors=[];try{for(const file of files)try{const r=addProjectionSource(await readImportText(file,'projections'),file.name);r.replaced?replaced++:added++}catch(e){errors.push(file.name+': '+e.message)}let ownershipMessage='';if(added||replaced){try{const count=applyOutsideBlendOwnership();ownershipMessage=' Outside ownership automatically applied to '+count+' players; supplied values override current/model ownership. Projections still require Apply Blended Projections.'}catch(e){ownershipMessage=' Ownership not applied: '+e.message}}renderProjectionBlend();$('blendStatus').textContent='Imported '+added+' new sources; updated '+replaced+' existing sources.'+(errors.length?' '+errors.join(' '):' Review matches, weights and the preview before applying.')+ownershipMessage}finally{$('blendImport').disabled=false}};
+$('blendImport').onclick=async()=>{
+ const files=Array.from($('blendFiles').files);
+ if(!files.length){$('blendStatus').textContent='Choose one or more projection files.';return}
+ const previous=JSON.parse(JSON.stringify(blendState())),slate=blendSlateKey();
+ $('blendImport').disabled=true;
+ try{
+  if(new Set(files.map(file=>file.name)).size!==files.length)throw Error('Use a different filename for each projection source.');
+  const uploads=await Promise.all(files.map(async file=>({file,text:await readImportText(file,'projections')})));
+  if(slate!==blendSlateKey())throw Error('The slate changed during upload. Import again.');
+  for(const {file,text} of uploads){
+   const parsed=computeFileProjections(makeFileProjectionSource(text,file.name));
+   if(parsed.errors.length)throw Error(file.name+' — '+parsed.errors[0]);
+  }
+  const blend=blendState();
+  if(blend.slateKey!==slate){blend.currentSnapshot=null;blend.appliedAt=null}
+  blend.sources=[];blend.slateKey=slate;
+  for(const {file,text} of uploads)addProjectionSource(text,file.name);
+  applyProjectionBlend();
+  renderProjectionBlend();
+ }catch(error){
+  state.projectionBlend=previous;saveBlend();renderProjectionBlend();
+  $('blendStatus').textContent='Could not apply upload: '+error.message;
+ }finally{$('blendImport').disabled=false}
+};
 function changeBlendSource(e){const t=e.target,id=t.dataset.blendSource;if(!id)return;const source=blendState().sources.find(s=>s.id===id);if(!source)return;if(t.dataset.blendMap){source.columns[t.dataset.blendMap]=Number(t.value);blendPage=1;saveBlend();renderProjectionBlend()}else if(t.dataset.blendField){const field=t.dataset.blendField;source[field]=field==='enabled'?t.checked:t.value;if(field==='label'&&!source.label.trim())source.label=source.fileName;saveBlend();blendPage=1;renderBlendPreview()}$('blendStatus').textContent='Source settings updated. Review the blend before applying.'}
 $('blendSources').addEventListener('input',e=>{if(e.target.dataset.blendField==='weight')changeBlendSource(e)});$('blendSources').addEventListener('change',e=>{if(e.target.dataset.blendField!=='weight')changeBlendSource(e)});
 $('blendSources').addEventListener('click',e=>{const button=e.target.closest('button[data-blend-remove]');if(!button)return;const b=blendState();b.sources=b.sources.filter(s=>s.id!==button.dataset.blendRemove);saveBlend();blendPage=1;renderProjectionBlend();$('blendStatus').textContent='Source removed. Review the remaining blend before applying.'});
@@ -73,3 +137,4 @@ $('blendIncludeCurrent').onchange=()=>{const b=blendState();b.includeCurrent=$('
 $('blendCurrentWeight').oninput=()=>{blendState().currentWeight=$('blendCurrentWeight').value;saveBlend();renderBlendPreview()};
 $('blendCaptureCurrent').onclick=()=>{captureCurrentBlend();saveBlend();renderProjectionBlend();$('blendStatus').textContent='Captured the current Projections tab values. Review the updated average before applying.'};
 renderProjectionBlend();
+
