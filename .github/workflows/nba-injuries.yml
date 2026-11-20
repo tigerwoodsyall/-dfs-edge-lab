@@ -30,7 +30,18 @@ jobs:
       - name: Install report parser
         run: python -m pip install pdfplumber==0.11.9
       - name: Read latest official NBA injury report
+        id: injuries
+        continue-on-error: ${{ github.event_name == 'push' }}
         run: python update-nba-injuries.py
+      - name: Preserve the published injury feed on a code deployment
+        if: steps.injuries.outcome == 'failure' && github.event_name == 'push'
+        run: |
+          curl --fail --silent --show-error --max-time 20 \
+            https://tigerwoodsyall.github.io/-dfs-edge-lab/nba-injuries.json \
+            --output /tmp/previous-nba-injuries.json
+          python -c 'import json; d=json.load(open("/tmp/previous-nba-injuries.json")); assert d["version"] == 1 and isinstance(d["players"], list) and d["reportAt"]'
+          cp /tmp/previous-nba-injuries.json nba-injuries.json
+          echo "::warning::Official injury refresh failed. Published injury timestamps are preserved."
       - name: Refresh automatically reported starting lineups
         timeout-minutes: 2
         continue-on-error: true
@@ -65,3 +76,4 @@ jobs:
       - name: Publish site and injury feed
         id: deployment
         uses: actions/deploy-pages@v4
+
