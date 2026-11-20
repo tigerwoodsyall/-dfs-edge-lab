@@ -88,15 +88,33 @@ def refresh(output='nba-injuries.json', now=None):
     local = now.astimezone(ET)
     year = local.year if local.month >= 7 else local.year - 1
     page_url = f'https://official.nba.com/nba-injury-report-{year}-{str(year + 1)[2:]}-season/'
-    page = html.unescape(get(page_url).decode('utf-8'))
-    reports = [m for m in PDF_PATTERN.finditer(page) if stamp(m) <= now + dt.timedelta(minutes=10)]
-    if not reports:
-        raise ValueError('No published official injury report links found')
-    report = max(reports, key=stamp)
-    report_time = stamp(report)
-    if now - report_time > dt.timedelta(hours=36):
-        raise ValueError('Latest official report is over 36 hours old')
-    records, pending = parse_report(get(report[0]))
+    try:
+        page = html.unescape(get(page_url).decode('utf-8'))
+        reports = [m for m in PDF_PATTERN.finditer(page) if stamp(m) <= now + dt.timedelta(minutes=10)]
+        if not reports:
+            raise ValueError('No official reports on the index')
+        report = max(reports, key=stamp)
+        report_time = stamp(report)
+        if now - report_time > dt.timedelta(hours=36):
+            raise ValueError('Latest indexed report is stale')
+        pdf = get(report[0])
+    except (OSError, ValueError):
+        # The index can redirect during site maintenance. Check the official
+        # quarter-hour PDFs directly, newest first, on the same trusted host.
+        quarter = local.replace(minute=(local.minute // 15) * 15, second=0, microsecond=0)
+        for offset in range(8):
+            report_time = quarter - dt.timedelta(minutes=15 * offset)
+            url = 'https://ak-static.cms.nba.com/referee/injury/Injury-Report_' + report_time.strftime('%Y-%m-%d_%I_%M%p.pdf')
+            try:
+                pdf = get(url)
+            except (OSError, ValueError):
+                continue
+            if pdf.startswith(b'%PDF'):
+                report = PDF_PATTERN.fullmatch(url)
+                break
+        else:
+            raise ValueError('No recent official NBA PDF is available')
+    records, pending = parse_report(pdf)
     data = {'version': 1, 'schedulerEnabled': os.environ.get('GITHUB_ACTIONS') == 'true', 'checkedAt': now.isoformat(), 'reportAt': report_time.isoformat(), 'sourceUrl': report[0], 'indexUrl': page_url, 'players': records, 'notSubmitted': pending}
     target = Path(output)
     temporary = target.with_suffix('.tmp')
@@ -107,3 +125,4 @@ def refresh(output='nba-injuries.json', now=None):
 
 if __name__ == '__main__':
     refresh()
+
