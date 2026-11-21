@@ -59,7 +59,7 @@ function applyUploadedBlend(){
   const data={...source,slateKey:blend.slateKey,columns};
   const result=computeFileProjections(data);
   if(result.errors.length)throw Error(source.fileName+' — '+result.errors[0]);
-  return {data,records:result.records,weight:Number(source.weight)};
+  return {data,records:result.records,issues:result.issues,weight:Number(source.weight)};
  });
  const label=sources.map(s=>s.fileName).join(' + ');
  let source=inputs[0].data;
@@ -81,6 +81,8 @@ function applyUploadedBlend(){
  const applied=applyFileProjections();
  blend.appliedAt=Date.now();blend.undo=null;saveBlend();
  $('blendStatus').textContent='Using uploaded projections only: '+label+'. '+state.players.filter(p=>p.projection>0).length+' players have positive projections after injury checks.';
+ const skipped=inputs.flatMap(input=>input.issues||[]).filter(issue=>issue.reason.startsWith('Skipped:'));
+ if(skipped.length)$('blendStatus').textContent+=' '+skipped.length+' ID mismatch'+(skipped.length===1?'':'es')+'. '+skipped.slice(0,3).map(issue=>'Row '+issue.row+' · '+issue.reason).join(' ');
  return applied;
 }
 function applyProjectionBlend(){if(!blendState().includeCurrent)return applyUploadedBlend();const result=computeProjectionBlend();if(result.errors.length)throw Error(result.errors.join(' '));const rows=result.rows.filter(r=>r.ready||r.ownershipValue!==null);if(!rows.length)throw Error('No projections or outside ownership eligible to apply. Review matching and minimum sources.');const before=new Map(state.players.map(p=>[String(p.id),{projection:num(p.projection),ownership:num(p.ownership),source:p.ownershipSource||''}]));if(typeof exitExclusiveProjectionMode==='function')exitExclusiveProjectionMode(true);const changed=[];let ownershipCount=0;for(const row of rows){const p=row.player,old=before.get(String(p.id));if(row.ready)p.projection=+row.value.toFixed(2);if(row.ownershipValue!==null){p.ownership=+row.ownershipValue.toFixed(2);p.ownershipSource='Imported: '+(row.ownershipContributions.map(r=>r.label).join(' + ')||'zero/missing imported projection');ownershipCount++}if(old.projection!==num(p.projection)||old.ownership!==num(p.ownership)||old.source!==(p.ownershipSource||''))changed.push({id:String(p.id),before:old.projection,after:num(p.projection),beforeOwnership:old.ownership,afterOwnership:num(p.ownership),beforeOwnershipSource:old.source,afterOwnershipSource:p.ownershipSource||''})}const b=blendState();b.undo={slateKey:blendSlateKey(),values:changed};b.appliedAt=Date.now();b.minimum=$('blendMinimum').value;const saved=saveBlend();renderAll();renderProjectionBlend();if(saved)$('blendStatus').textContent='Applied blended projections to '+result.ready.length+' players and outside ownership to '+ownershipCount+' players. Missing uploaded ownership kept its current value. Rerun simulations and regenerate lineups to use the updated inputs. Existing rosters are kept.';return result;
@@ -137,4 +139,5 @@ $('blendIncludeCurrent').onchange=()=>{const b=blendState();b.includeCurrent=$('
 $('blendCurrentWeight').oninput=()=>{blendState().currentWeight=$('blendCurrentWeight').value;saveBlend();renderBlendPreview()};
 $('blendCaptureCurrent').onclick=()=>{captureCurrentBlend();saveBlend();renderProjectionBlend();$('blendStatus').textContent='Captured the current Projections tab values. Review the updated average before applying.'};
 renderProjectionBlend();
+
 

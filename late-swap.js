@@ -28,7 +28,7 @@ function lateProjectionPlayers(source=activeLateProjectionSource()){
    minutes:projection>0?uploaded?.minutes??0:0,usage:projection>0?uploaded?.usage??0:0,
    standardDeviation:adjustment===undefined?uploaded?.standardDeviation:undefined,
    deviationProjection:projection,deviationCeiling:ceiling,
-   lateImportedProjection:uploaded?.projection,
+   lateImportedProjection:uploaded?.projection,lateOwnershipMissing:projection>0&&!Number.isFinite(uploaded?.ownership),
    projectionSource:out?'Officially Out':adjustment!==undefined?'Late Swap adjustment':uploaded?source.label:'Missing from Late Swap upload'};
  });
 }
@@ -152,8 +152,55 @@ function renderLateSwap(){
  $('lateEntries').innerHTML=batch.entries.map(entry=>{changed=refreshLateLocks(entry,now)||changed;const players=entry.result?.players||entry.sourcePlayers,remaining=players.reduce((n,p,j)=>n+(!entry.locked[j]?num(map.get(String(p?.id))?.projection):0),0),salary=players.reduce((n,p)=>n+num(p?.salary),0);return '<div class="lineup"><div class="lineuphead"><b>Entry '+escapeHTML(entry.entryId)+'</b><span class="chip">'+entry.locked.filter(Boolean).length+' locked · '+entry.locked.filter(x=>!x).length+' open</span></div><p class="note">'+escapeHTML(entry.issues.join(' ')||entry.result?.error||entry.result?.status||'Ready to optimize unlocked slots.')+'</p><p class="note">Salary $'+salary.toLocaleString()+' · Remaining projection '+remaining.toFixed(1)+' · '+(lineupGames(players.filter(Boolean))||'unverified')+' games</p>'+SLOTS.map((slot,j)=>{const p=players[j];return '<div class="slot"><span>'+slot+'</span><b>'+escapeHTML(p?.name||'Empty / unknown player')+' <small>'+escapeHTML(p?teamCode(p)+' · '+startTimeLabel(p):'')+'</small></b><small class="'+(entry.locked[j]?'danger':'good')+'">'+(entry.locked[j]?'LOCKED':'OPEN')+'</small><small>$'+num(p?.salary).toLocaleString()+'</small></div>'}).join('')+'</div>'}).join('');if(changed)save();
 }
 $('lateImport').onclick=async()=>{const file=$('lateFile').files[0];if(!file){$('lateStatus').textContent='Choose your filled DraftKings entries CSV first.';return}try{const batch=importLateEntries(await readImportText(file,'entries'),file.name);const invalid=batch.entries.filter(e=>e.issues.length).length;$('lateStatus').textContent='Imported '+batch.entries.length+' entries. '+(invalid?invalid+' need attention before export.':'Review locks, update projections, then run Late Swap.')+(batch.importWarnings?.length?' '+batch.importWarnings.length+' salary-table warnings: '+batch.importWarnings.slice(0,3).join(' '):'')}catch(e){$('lateStatus').textContent='Entries import failed: '+e.message}renderLateSwap()};
-function importLateProjections(text,fileName){
- const source=makeFileProjectionSource(text,fileName),result=computeFileProjections(source);
+function lateOwnershipColumn(headers){
+ const names=headers.map(blendHeader);
+ const isOwnership=name=>/^(?:projected|proj|predicted|estimated|gpp|p)?own(?:ership)?(?:pct|percent|percentage|projection|proj)?$/.test(name.replace(/draftkings|dk/g,''));
+ const matchesPlatform=name=>/^(?:dk|draftkings)|(?:dk|draftkings)$/.test(name);
+ const preferred=FILE_ALIASES.ownership.filter(matchesPlatform).map(alias=>names.indexOf(alias)).find(i=>i>=0);
+ if(preferred!==undefined)return preferred;
+ const dk=names.findIndex(name=>/^(?:dk|draftkings)|(?:dk|draftkings)$/.test(name)&&isOwnership(name));
+ if(dk>=0)return dk;
+ return names.findIndex(name=>!/(?:fanduel|^fd|fd$|yahoo)/.test(name)&&(FILE_ALIASES.ownership.includes(name)||isOwnership(name)));
+}
+function readLateProjectionInput(input){
+ const source=makeFileProjectionSource(input.text,input.name);
+ const column=input.column??lateOwnershipColumn(source.headers);
+ source.columns.ownership=column;
+ if(column>=0&&input.fraction){
+  source.rows=source.rows.map(row=>{
+   const copy=row.slice(),raw=String(row[column]??'').trim();
+   if(raw&&!raw.endsWith('%')&&Number.isFinite(Number(raw))){
+    const value=Number(raw);
+    if(value<0||value>1)throw Error(input.name+' — fractional ownership must be between 0 and 1.');
+    copy[column]=String(value*100);
+   }
+   return copy;
+  });
+ }
+ return computeFileProjections(source);
+}
+let lateUploadSelection=0;
+$('lateProjFile').addEventListener('change',async()=>{
+ const selection=++lateUploadSelection,files=Array.from($('lateProjFile').files);
+ const box=$('lateOwnershipMapping');box.replaceChildren();
+ try{
+  const tables=await Promise.all(files.map(async file=>readProjectionTable(await readImportText(file,'projections'))));
+  if(selection!==lateUploadSelection)return;
+  tables.forEach((table,index)=>{
+   const label=document.createElement('label'),select=document.createElement('select');
+   label.textContent=files[index].name+' · Ownership column';select.id='lateOwnColumn'+index;
+   label.htmlFor=select.id;select.add(new Option('No ownership column','-1'));
+   table.headers.forEach((header,i)=>select.add(new Option(header,String(i))));
+   select.value=String(lateOwnershipColumn(table.headers));
+   const units=document.createElement('select'),unitsLabel=document.createElement('label');
+   units.id='lateOwnUnits'+index;unitsLabel.htmlFor=units.id;unitsLabel.textContent='Ownership format';
+   units.add(new Option('Percent (18 or 18%)','percent'));units.add(new Option('Fraction (0.18 means 18%)','fraction'));
+   box.append(label,select,unitsLabel,units);
+  });
+ }catch(e){if(selection===lateUploadSelection)box.textContent=e.message}
+});
+function importLateProjections(text,fileName,options={}){
+ const result=readLateProjectionInput({text,name:fileName,...options});
  if(result.errors.length)throw Error(result.errors.slice(0,8).join(' '));
  if(![...result.records.values()].some(({values})=>values.projection>0))throw Error('No matched players have a positive projection.');
  const records=Object.fromEntries([...result.records].map(([id,{values}])=>[id,values]));
@@ -163,7 +210,7 @@ function importLateProjections(text,fileName){
 }
 
 function mergeLateProjectionFiles(files){
- const results=files.map(f=>{const source=makeFileProjectionSource(f.text,f.name),result=computeFileProjections(source);if(result.errors.length)throw Error(f.name+': '+result.errors.slice(0,4).join(' '));return result});
+ const results=files.map(f=>{const result=readLateProjectionInput(f);if(result.errors.length)throw Error(f.name+': '+result.errors.slice(0,4).join(' '));return result});
  const fields=['projection','ceiling','minutes','ownership','usage','standardDeviation'],rows=[['ID','Name',...fields]];
  for(const p of state.players){
  const records=results.map(r=>r.records.get(String(p.id))),excluded=records.some(r=>!r||r.values.projection===0),values={};
@@ -180,9 +227,9 @@ $('lateProjImport').onclick=async()=>{
  const files=[...$('lateProjFile').files];if(!files.length){$('lateStatus').textContent='Choose one or more updated projection files first.';return}
  const signature=lateSignature();$('lateProjImport').disabled=true;
  try{
- const inputs=await Promise.all(files.map(async f=>({name:f.name,text:await readImportText(f,'projections')})));
+ const inputs=await Promise.all(files.map(async (f,i)=>({name:f.name,column:$('lateOwnColumn'+i)?Number($('lateOwnColumn'+i).value):undefined,fraction:$('lateOwnUnits'+i)?.value==='fraction',text:await readImportText(f,'projections')})));
  if(lateSignature()!==signature)throw Error('Player inputs changed while reading files. Try again.');
- const text=inputs.length===1?inputs[0].text:mergeLateProjectionFiles(inputs),label=inputs.map(f=>f.name).join(' + '),result=importLateProjections(text,label);
+ const text=inputs.length===1?inputs[0].text:mergeLateProjectionFiles(inputs),label=inputs.map(f=>f.name).join(' + '),result=importLateProjections(text,label,inputs.length===1?{column:inputs[0].column,fraction:inputs[0].fraction}:{});
  $('lateStatus').textContent='Imported '+inputs.length+' projection file'+(inputs.length===1?'':'s; merged equally')+'. Late Swap only: '+[...result.records.values()].filter(({values})=>values.projection>0).length+' matched players with positive projections before injury checks. Missing and zero projections are excluded from open slots.';
  }catch(e){$('lateStatus').textContent='Projection import failed: '+e.message}
  finally{$('lateProjImport').disabled=false;renderLateSwap()}
@@ -204,11 +251,11 @@ function renderLateSelectionControls(){
  $('lateTeamLimitRows').innerHTML=teams.map(t=>{const r=teamRule(t);return '<tr><td>'+escapeHTML(t)+'</td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Minimum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="min" value="'+r.min+'" '+(lateBusy?'disabled':'')+'></td><td><input class="tiny" type="number" min="0" max="8" step="1" aria-label="Maximum players from '+escapeHTML(t)+'" data-late-team="'+escapeHTML(t)+'" data-bound="max" value="'+r.max+'" '+(lateBusy?'disabled':'')+'></td></tr>'}).join('');$('lateApplyTeamLimits').disabled=lateBusy||!teams.length;$('lateSetAllTeamMax').disabled=lateBusy||!teams.length;
  $('lateTeamExclusions').innerHTML=teams.map(t=>'<label style="display:inline-flex;align-items:center;gap:6px;margin:6px 12px 6px 0"><input style="width:auto" type="checkbox" data-late-exclude="'+escapeHTML(t)+'" '+(excluded.has(t)?'checked ':'')+(lateBusy?'disabled':'')+'>Exclude '+escapeHTML(t)+'</label>').join('')||'Load player salaries first.';
  const source=activeLateProjectionSource();
- $('lateProjectionSourceStatus').textContent=source?'Late Swap projections: '+source.label:'Using current site projections. Upload a file to use its projections exclusively in Late Swap.';
+ $('lateProjectionSourceStatus').textContent=source?'Late Swap projections: '+source.label+' · Uploaded ownership for '+Object.values(source.records).filter(v=>v.projection>0&&Number.isFinite(v.ownership)).length+' of '+Object.values(source.records).filter(v=>v.projection>0).length+' positive projections.':'Using current site projections. Upload a file to use its projections exclusively in Late Swap.';
  const q=$('latePlayerSearch').value.toLowerCase(),now=Date.now();
  $('latePlayerLocks').innerHTML=lateProjectionPlayers(source).filter(p=>(p.name+' '+teamCode(p)).toLowerCase().includes(q)).sort((a,b)=>num(b.projection)-num(a.projection)).map(p=>{
  const started=gameStartInstant(p)!==null&&gameStartInstant(p)<=now,editable=!lateBusy&&!started&&(!source||p.lateImportedProjection>0)&&!(typeof nbaOut==='function'&&nbaOut(p));
- return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+'<div class="projection-control"><button type="button" data-late-boost="-1" data-late-id="'+escapeHTML(p.id)+'" '+(!editable?'disabled':'')+'>−5%</button><input class="tiny" type="number" min="0" step="0.01" aria-label="Late Swap projection for '+escapeHTML(p.name)+'" data-late-projection="'+escapeHTML(p.id)+'" value="'+num(p.projection).toFixed(2)+'" '+(!editable?'disabled':'')+'><button type="button" data-late-boost="1" data-late-id="'+escapeHTML(p.id)+'" '+(!editable?'disabled':'')+'>+5%</button></div><small title="'+escapeHTML(p.projectionSource||'Current applied projection')+'">'+(Number.isFinite(p.lateImportedProjection)?'Uploaded: '+p.lateImportedProjection.toFixed(2):escapeHTML(p.projectionSource||'Current site projection'))+'</small></td><td>'+num(p.ownership).toFixed(2)+'%</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td><td><input style="width:auto" type="checkbox" aria-label="Fade '+escapeHTML(p.name)+' in Late Swap" data-late-fade="'+escapeHTML(p.id)+'" '+(p.fade?'checked ':'')+(lateBusy||started?'disabled':'')+'></td></tr>';
+ return '<tr><td>'+escapeHTML(p.name)+'</td><td>'+escapeHTML(teamCode(p))+'</td><td>'+'<div class="projection-control"><button type="button" data-late-boost="-1" data-late-id="'+escapeHTML(p.id)+'" '+(!editable?'disabled':'')+'>−5%</button><input class="tiny" type="number" min="0" step="0.01" aria-label="Late Swap projection for '+escapeHTML(p.name)+'" data-late-projection="'+escapeHTML(p.id)+'" value="'+num(p.projection).toFixed(2)+'" '+(!editable?'disabled':'')+'><button type="button" data-late-boost="1" data-late-id="'+escapeHTML(p.id)+'" '+(!editable?'disabled':'')+'>+5%</button></div><small title="'+escapeHTML(p.projectionSource||'Current applied projection')+'">'+(Number.isFinite(p.lateImportedProjection)?'Uploaded: '+p.lateImportedProjection.toFixed(2):escapeHTML(p.projectionSource||'Current site projection'))+'</small></td><td>'+(p.lateOwnershipMissing?'Missing':num(p.ownership).toFixed(2)+'%')+'</td><td>'+(started?'Started — entry locks apply':'<input style="width:auto" type="checkbox" aria-label="Lock '+escapeHTML(p.name)+' in Late Swap" data-late-player="'+escapeHTML(p.id)+'" '+(p.lock?'checked ':'')+(lateBusy?'disabled':'')+'>')+'</td><td><input style="width:auto" type="checkbox" aria-label="Fade '+escapeHTML(p.name)+' in Late Swap" data-late-fade="'+escapeHTML(p.id)+'" '+(p.fade?'checked ':'')+(lateBusy||started?'disabled':'')+'></td></tr>';
  }).join('');
 }
 
@@ -269,4 +316,5 @@ $('latePlayerLocks').onchange=e=>{
 };
 
 renderLateSwap();setInterval(()=>{if($('lateSwap').classList.contains('active')&&!lateBusy)renderLateSwap()},15000);
+
 
